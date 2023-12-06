@@ -4,7 +4,7 @@ pub use crate::error::ContractError;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    ensure_eq, Addr, Deps, DepsMut, Empty, Env, Event, HexBinary, MessageInfo, QueryResponse,
+    Addr, Deps, DepsMut, Empty, ensure_eq, Env, Event, HexBinary, MessageInfo, QueryResponse,
     Response, StdResult,
 };
 use cw2::set_contract_version;
@@ -15,7 +15,7 @@ use hpl_interface::{
         IsmQueryMsg, IsmType, ModuleTypeResponse, VerifyInfoResponse, VerifyResponse,
     },
     to_binary,
-    types::{bech32_decode, AggregateMetadata},
+    types::{AggregateMetadata, bech32_decode},
 };
 use hpl_ownable::get_owner;
 
