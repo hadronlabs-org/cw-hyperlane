@@ -20,7 +20,7 @@ pub struct Config {
 
 /// **VERIFIED_IDS** contains all the `message.id`s (hash) that were verified by core wormhole contract.
 /// Map key is the message id.
-pub const VERIFIED_IDS: Map<Vec<u8>, ()> = Map::new("verified-ids");
+pub const VERIFIED_IDS: Map<Vec<u8>, ()> = Map::new("verified_ids");
 
 /// **CONFIG** contains contract's configuration
 pub const CONFIG: Item<Config> = Item::new("config");

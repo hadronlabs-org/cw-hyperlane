@@ -57,7 +57,7 @@ pub fn execute(
         ExecuteMsg::SetWormholeCore { wormhole_core } => {
             handle_set_wormhole_core(deps, info, wormhole_core)
         }
-        // metadata is actually VAA data in order for it to work
+        // metadata is actually wormhole VAA data in order for it to work
         ExecuteMsg::SubmitMeta { metadata, message } => handle_submit_meta(deps, metadata, message),
     }
 }
@@ -174,13 +174,9 @@ fn verify(
     let packed_id = unpack_verify_vaa(deps, metadata, message)?;
 
     // 2. check the map
-    ensure_eq!(
-        VERIFIED_IDS.has(deps.storage, packed_id.into()),
-        true,
-        ContractError::IdIsNotVerified
-    );
+    let verified = VERIFIED_IDS.has(deps.storage, packed_id.into());
 
-    Ok(VerifyResponse { verified: true })
+    Ok(VerifyResponse { verified })
 }
 
 // TODO: what is this for?
