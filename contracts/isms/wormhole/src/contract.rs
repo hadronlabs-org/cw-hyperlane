@@ -1,5 +1,5 @@
 use crate::helpers::new_event;
-use crate::state::VERIFIED_IDS;
+use crate::state::{Config, CONFIG, VERIFIED_IDS};
 use crate::wormhole::{ParsedVAA, WormholeQueryMsg};
 use crate::{ContractError, CONTRACT_NAME, CONTRACT_VERSION, WORMHOLE_CORE};
 use cosmwasm_std::{
@@ -26,6 +26,16 @@ pub fn instantiate(
 
     let wormhole_core = deps.api.addr_validate(&msg.wormhole_core)?;
     WORMHOLE_CORE.save(deps.storage, &wormhole_core)?;
+
+    CONFIG.save(
+        deps.storage,
+        &Config {
+            emitter_chain: msg.emitter_chain,
+            emitter_address: msg.emitter_address,
+            origin_domain: msg.origin_domain,
+            origin_sender: msg.origin_sender,
+        },
+    )?;
 
     Ok(Response::new().add_event(
         new_event("instantiate")
@@ -107,7 +117,8 @@ fn handle_submit_meta(
 }
 
 /// **unpack_verify_vaa** uses core wormhole contract to verify and unpack the vaa inside metadata
-/// it also compares it to the message id.
+/// It also compares it to the message id.
+/// Also verify that that origin sender and origin chain is as expected.
 fn unpack_verify_vaa(
     deps: Deps,
     metadata: HexBinary,
@@ -129,11 +140,27 @@ fn unpack_verify_vaa(
 
     ensure_eq!(id, packed_id, ContractError::IdsDontMatch);
 
-    // todo: check
-    // parsed_vaa.emitter_chain;
-    // parsed_vaa.emitter_address;
-    // message.origin_domain;
-    // message.sender;
+    let config = CONFIG.load(deps.storage)?;
+    ensure_eq!(
+        parsed_vaa.emitter_chain,
+        config.emitter_chain,
+        ContractError::OriginDoesNotMatch
+    );
+    ensure_eq!(
+        parsed_vaa.emitter_address,
+        config.emitter_address,
+        ContractError::OriginDoesNotMatch
+    );
+    ensure_eq!(
+        message.origin_domain,
+        config.origin_domain,
+        ContractError::OriginDoesNotMatch
+    );
+    ensure_eq!(
+        message.sender,
+        HexBinary::from(config.origin_sender),
+        ContractError::OriginDoesNotMatch
+    );
 
     Ok(packed_id)
 }

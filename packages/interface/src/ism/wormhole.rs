@@ -7,6 +7,12 @@ use cosmwasm_std::HexBinary;
 pub struct InstantiateMsg {
     pub owner: String,
     pub wormhole_core: String,
+
+    // TODO: comments
+    pub emitter_chain: u16,
+    pub emitter_address: Vec<u8>,
+    pub origin_domain: u32,
+    pub origin_sender: Vec<u8>,
 }
 
 #[cw_serde]

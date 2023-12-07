@@ -14,4 +14,7 @@ pub enum ContractError {
 
     #[error("message id is not verified")]
     IdIsNotVerified,
+
+    #[error("origin data does not match")]
+    OriginDoesNotMatch,
 }
