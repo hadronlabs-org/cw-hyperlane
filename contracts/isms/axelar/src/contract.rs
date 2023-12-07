@@ -108,7 +108,7 @@ fn handle_submit_meta(
 // TODO
 fn verify(
     deps: Deps,
-    metadata: HexBinary,
+    _metadata: HexBinary,
     message: HexBinary,
 ) -> Result<VerifyResponse, ContractError> {
     let message: Message = message.into();

@@ -162,7 +162,7 @@ fn verify_info(deps: Deps, _message: HexBinary) -> Result<VerifyInfoResponse, Co
     // we cannot query validators from Wormhole Core contract
     Ok(VerifyInfoResponse {
         threshold: 1,
-        validators: vec![bech32_decode(WORMHOLE_CORE.load(deps.storage)?.as_str())?.into()],
+        validators: vec![],
     })
 }
 
