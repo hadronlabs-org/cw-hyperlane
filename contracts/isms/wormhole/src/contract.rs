@@ -155,7 +155,8 @@ fn verify(
     Ok(VerifyResponse { verified: true })
 }
 
-// TODO
+// TODO: what is this for?
+// TODO: implement
 fn verify_info(deps: Deps, _message: HexBinary) -> Result<VerifyInfoResponse, ContractError> {
     // this is not entirely correct, but I don't see a better way to do this
     // we cannot query validators from Wormhole Core contract

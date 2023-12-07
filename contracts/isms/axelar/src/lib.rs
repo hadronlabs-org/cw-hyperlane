@@ -1,11 +1,11 @@
 pub mod error;
 
+mod axelar;
 mod contract;
 mod helpers;
 mod state;
 #[cfg(test)]
 pub mod tests;
-mod axelar;
 
 pub use crate::error::ContractError;
 use cosmwasm_std::Addr;
