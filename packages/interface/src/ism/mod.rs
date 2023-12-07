@@ -3,6 +3,7 @@ pub mod multisig;
 pub mod routing;
 
 pub mod wormhole;
+pub mod axelar;
 
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, CustomQuery, HexBinary, QuerierWrapper, StdResult};

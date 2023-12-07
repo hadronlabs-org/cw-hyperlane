@@ -13,10 +13,6 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     Ownable(OwnableMsg),
 
-    SetWormholeCore {
-        wormhole_core: String,
-    },
-
     /// **SubmitMeta** step is called by the wormhole relayer.
     /// We verify the metadata and compare it to the message id
     /// Then as we're sure that this metadata with message is legit,
@@ -35,14 +31,4 @@ pub enum QueryMsg {
     Ownable(OwnableQueryMsg),
 
     Ism(IsmQueryMsg),
-
-    // TODO: what is this for?
-    WormholeIsm(WormholeIsmQueryMsg),
-}
-
-#[cw_serde]
-#[derive(QueryResponses)]
-pub enum WormholeIsmQueryMsg {
-    #[returns(String)]
-    WormholeCore {},
 }
