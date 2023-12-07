@@ -8,4 +8,10 @@ pub enum ContractError {
 
     #[error("unauthorized")]
     Unauthorized,
+
+    #[error("ids of message and vaa data does not match")]
+    IdsDontMatch,
+
+    #[error("message id is not verified")]
+    IdIsNotVerified,
 }

@@ -1,4 +1,3 @@
-
 #[cfg(test)]
 mod tests {
     use crate::{verify, ParsedVAA, WormholeQueryMsg, WORMHOLE_CORE};

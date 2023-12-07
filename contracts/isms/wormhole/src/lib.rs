@@ -1,10 +1,11 @@
 pub mod error;
 
+mod contract;
+mod helpers;
+mod state;
 #[cfg(test)]
 pub mod tests;
-mod contract;
 mod wormhole;
-mod helpers;
 
 pub use crate::error::ContractError;
 use cosmwasm_std::Addr;

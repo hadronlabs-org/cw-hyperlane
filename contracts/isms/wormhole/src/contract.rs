@@ -1,14 +1,17 @@
-use cosmwasm_std::{Binary, Deps, DepsMut, Empty, ensure_eq, Env, HexBinary, MessageInfo, QueryResponse, Response};
+use crate::helpers::new_event;
+use crate::state::VERIFIED_IDS;
+use crate::wormhole::{ParsedVAA, WormholeQueryMsg};
+use crate::{ContractError, CONTRACT_NAME, CONTRACT_VERSION, WORMHOLE_CORE};
+use cosmwasm_std::{
+    ensure_eq, Binary, Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, QueryResponse, Response,
+    StdResult,
+};
 use cw2::set_contract_version;
+use hpl_interface::ism::wormhole::{ExecuteMsg, InstantiateMsg, QueryMsg, WormholeIsmQueryMsg};
 use hpl_interface::ism::IsmQueryMsg::{ModuleType, Verify, VerifyInfo};
 use hpl_interface::ism::{IsmType, ModuleTypeResponse, VerifyInfoResponse, VerifyResponse};
-use hpl_interface::ism::wormhole::{ExecuteMsg, InstantiateMsg, QueryMsg, WormholeIsmQueryMsg};
 use hpl_interface::to_binary;
 use hpl_interface::types::{bech32_decode, Message};
-use crate::{CONTRACT_NAME, CONTRACT_VERSION, ContractError, WORMHOLE_CORE};
-use crate::ContractError::Unauthorized;
-use crate::helpers::new_event;
-use crate::wormhole::{ParsedVAA, WormholeQueryMsg};
 
 #[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
 pub fn instantiate(
@@ -57,10 +60,8 @@ pub fn execute(
             ))
         }
 
-        ExecuteMsg::SubmitVAA { metadata, message } => {
-            id = get_from_cbc(metadata);
-            map[id] = true
-        }
+        // metadata is actually VAA data in order for it to work
+        ExecuteMsg::SubmitMeta { metadata, message } => handle_submit_meta(deps, metadata, message),
     }
 }
 
@@ -87,28 +88,66 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<QueryResponse, Contr
     }
 }
 
-fn verify(
+/// **unpack_verify_vaa** uses core wormhole contract to verify and unpack the vaa inside metadata
+/// it also compares it to the message id.
+fn unpack_verify_vaa(
     deps: Deps,
     metadata: HexBinary,
     message: HexBinary,
-) -> Result<VerifyResponse, ContractError> {
+) -> Result<HexBinary, ContractError> {
     let wormhole_core = WORMHOLE_CORE.load(deps.storage)?;
     let wormhole_query_msg = WormholeQueryMsg::VerifyVAA {
         vaa: Binary::from(metadata.as_slice()),
         block_time: 0,
     };
-
     let parsed_vaa: ParsedVAA = deps
         .querier
         .query_wasm_smart(wormhole_core, &wormhole_query_msg)?;
 
+    let packed_id = HexBinary::from(parsed_vaa.payload.clone());
+
     let message: Message = message.into();
     let id = message.id();
 
-    Ok(VerifyResponse {
-        verified: HexBinary::from(parsed_vaa.payload) == id,
-        // verified: map[id]
-    })
+    ensure_eq!(id, packed_id, ContractError::IdsDontMatch);
+
+    // todo: check
+    // parsed_vaa.emitter_chain;
+    // todo: check
+    // parsed_vaa.emitter_address;
+
+    Ok(packed_id)
+}
+
+fn handle_submit_meta(
+    deps: DepsMut,
+    metadata: HexBinary,
+    message: HexBinary,
+) -> Result<Response, ContractError> {
+    // unpack and verify vaa and check that the message is indeed (indeed what?)
+    let packed_id = unpack_verify_vaa(deps.as_ref(), metadata, message)?;
+
+    VERIFIED_IDS.save(deps.storage, packed_id.into(), &())?;
+
+    Ok(Response::default())
+}
+
+fn verify(
+    deps: Deps,
+    metadata: HexBinary,
+    message: HexBinary,
+) -> Result<VerifyResponse, ContractError> {
+    // 1. verify that the message is indeed passed the check (unnecessary since the message.id is unique anyway?)
+    let packed_id = unpack_verify_vaa(deps, metadata, message)?;
+
+    // 2. check the map
+    ensure_eq!(
+        VERIFIED_IDS.has(deps.storage, packed_id.into()),
+        true,
+        ContractError::IdIsNotVerified
+    );
+
+    Ok(VerifyResponse { verified: true })
 }
 
 fn verify_info(deps: Deps, _message: HexBinary) -> Result<VerifyInfoResponse, ContractError> {
