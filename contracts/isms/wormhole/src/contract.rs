@@ -131,8 +131,9 @@ fn unpack_verify_vaa(
 
     // todo: check
     // parsed_vaa.emitter_chain;
-    // todo: check
     // parsed_vaa.emitter_address;
+    // message.origin_domain;
+    // message.sender;
 
     Ok(packed_id)
 }
