@@ -29,8 +29,9 @@ import { formatMessage, messageId } from '../src/helpers/hyperlane_copypaste';
 const WORMHOLE_RPC_URLS = ['http://localhost:7071'];
 const EMITTER_ADDRESS =
   '000000000000000000000000ffcf8fdee72ac11b5c542428b35eef5769c409f0';
+const EMITTER_ADDRESS_BASE = '0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0';
 const HYPERLANE_MESSAGE_ORIGIN_DOMAIN = 1; // TODO
-const HYPERLANE_MESSAGE_ORIGIN_SENDER = '1'; // TODO
+const HYPERLANE_MESSAGE_ORIGIN_SENDER = '0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0'; // TODO
 
 describe('Test Wormhole ISM', () => {
   const context: { park?: Cosmopark } = {};
@@ -47,9 +48,9 @@ describe('Test Wormhole ISM', () => {
     version: 1,
     nonce: 1,
     originDomain: 1,
-    senderAddr: 'todo',
+    senderAddr: EMITTER_ADDRESS_BASE,
     destinationDomain: 2,
-    recipientAddr: 'todo',
+    recipientAddr: EMITTER_ADDRESS_BASE,
     body: '0x123123',
   };
   const hexHyperlaneMessage = formatMessage(
@@ -65,7 +66,7 @@ describe('Test Wormhole ISM', () => {
 
   beforeAll(async () => {
     // start neutron, gaia and hermes relayer
-    context.park = await setupPark('simple', ['neutron', 'gaia'], true);
+    context.park = await setupPark('simple', ['neutron'], false);
 
     const mnemonic = context.park.config.wallets.demowallet1.mnemonic;
     const endpoint = `http://127.0.0.1:${context.park.ports['neutron'].rpc}`;
@@ -101,7 +102,7 @@ describe('Test Wormhole ISM', () => {
   it('deploys the wormhole core contracts', async () => {
     const wormholeIbcRes = await wasmClient.upload(
       deployer,
-      fs.readFileSync('../artifacts/wormhole_ibc.wasm'),
+      fs.readFileSync('./artifacts/contracts/wormhole_ibc-aarch64.wasm'),
       1.5,
     );
     const wormholeIbcCodeId = wormholeIbcRes.codeId;
@@ -134,11 +135,13 @@ describe('Test Wormhole ISM', () => {
   it('deploys the neutron ISM contract', async () => {
     const neutronWormholeIsmRes = await wasmClient.upload(
       deployer,
-      fs.readFileSync('../artifacts/neutron_ism_wormhole.wasm'),
+      fs.readFileSync('../artifacts/hpl_ism_wormhole-aarch64.wasm'),
       1.5,
     );
     const neutronIsmCodeId = neutronWormholeIsmRes.codeId;
     expect(neutronIsmCodeId).toBeGreaterThan(0);
+
+    console.log('hex encoded: ' + EMITTER_ADDRESS_BASE.slice(2).toLowerCase());
 
     const neutronWormholeIsmInstantiateRes = await wasmClient.instantiate(
       deployer,
@@ -147,11 +150,9 @@ describe('Test Wormhole ISM', () => {
         owner: deployer,
         wormhole_core: wormholeIbcAddress,
         emitter_chain: CHAINS['ethereum'],
-        emitter_address: new TextEncoder().encode(EMITTER_ADDRESS),
+        emitter_address: EMITTER_ADDRESS_BASE.slice(2, null).toLowerCase(),
         origin_domain: HYPERLANE_MESSAGE_ORIGIN_DOMAIN,
-        origin_sender: new TextEncoder().encode(
-          HYPERLANE_MESSAGE_ORIGIN_SENDER,
-        ),
+        origin_sender: HYPERLANE_MESSAGE_ORIGIN_SENDER.slice(2, null).toLowerCase(),
       },
       'wormholeIbc',
       'auto',
@@ -159,7 +160,6 @@ describe('Test Wormhole ISM', () => {
         admin: deployer, // want to be able to migrate contract for testing purposes (set low timeout values)
       },
     );
-    console.log('hex encoded: ' + new TextEncoder().encode(EMITTER_ADDRESS));
     neutronWormholeIsmAddress =
       neutronWormholeIsmInstantiateRes.contractAddress;
     expect(neutronWormholeIsmAddress).toBeTruthy();
