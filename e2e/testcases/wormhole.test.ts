@@ -5,14 +5,10 @@ import { GasPrice } from '@cosmjs/stargate';
 import { setupPark } from '../src/testSuite';
 import fs from 'fs';
 import Cosmopark from '@neutron-org/cosmopark';
-// import { Client as NeutronClient } from '@neutron-org/client-ts';
 import { ethers } from 'ethers';
 import { NodeHttpTransport } from '@improbable-eng/grpc-web-node-http-transport';
 import { Implementation__factory } from '@certusone/wormhole-sdk/lib/esm/ethers-contracts';
-
-// import { Address, Domain, HexString, ParsedMessage } from '@hyperlane-xyz/sdk/dist/utils';
-// import { publicrpc } from '@certusone/wormhole-sdk-proto-web';
-// const { GrpcWebImpl, PublicRPCServiceClientImpl } = publicrpc;
+// import { Client as NeutronClient } from '@neutron-org/client-ts';
 
 const ETH_RPC_URL = 'http://localhost:8545';
 const ETH_PRIVATE_KEY =
@@ -23,14 +19,14 @@ import {
   CONTRACTS,
   getEmitterAddressEth,
   getSignedVAAWithRetry,
-  // ParsedVaa,
   parseSequenceFromLogEth,
-  // parseVaa,
+  ParsedVaa,
+  parseVaa,
 } from '@certusone/wormhole-sdk';
 import { formatMessage, messageId } from '../src/helpers/hyperlane_copypaste';
 
+// tilt up devnet `WHAT?` address
 const WORMHOLE_RPC_URLS = ['http://localhost:7071'];
-const ETH_CHAIN_ID = 2; // TODO: check
 const EMITTER_ADDRESS =
   '000000000000000000000000ffcf8fdee72ac11b5c542428b35eef5769c409f0';
 const HYPERLANE_MESSAGE_ORIGIN_DOMAIN = 1; // TODO
@@ -150,7 +146,7 @@ describe('Test Wormhole ISM', () => {
       {
         owner: deployer,
         wormhole_core: wormholeIbcAddress,
-        emitter_chain: ETH_CHAIN_ID,
+        emitter_chain: CHAINS['ethereum'],
         emitter_address: new TextEncoder().encode(EMITTER_ADDRESS),
         origin_domain: HYPERLANE_MESSAGE_ORIGIN_DOMAIN,
         origin_sender: new TextEncoder().encode(
@@ -170,7 +166,7 @@ describe('Test Wormhole ISM', () => {
   }, 1000000);
 
   let signedVAA: Uint8Array;
-  // let parsedVaa: ParsedVaa;
+  let parsedVaa: ParsedVaa;
 
   it('publishes the VAA wormhole message', async () => {
     // create a signer for Eth
@@ -196,7 +192,8 @@ describe('Test Wormhole ISM', () => {
     signedVAA = vaaBytes;
     expect(signedVAA).not.toBeNull();
 
-    // parsedVaa = parseVaa(signedVAA);
+    parsedVaa = parseVaa(signedVAA);
+    expect(parsedVaa.payload.toString('hex')).toEqual(hyperlaneMessageId);
   }, 1000000);
 
   it('submits the VAA message with hyperlane message to verify to Neutron Wormhole ISM contract', async () => {
