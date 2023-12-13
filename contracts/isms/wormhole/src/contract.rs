@@ -10,7 +10,7 @@ use hpl_interface::ism::wormhole::{ExecuteMsg, InstantiateMsg, QueryMsg, Wormhol
 use hpl_interface::ism::IsmQueryMsg::{ModuleType, Verify, VerifyInfo};
 use hpl_interface::ism::{IsmType, ModuleTypeResponse, VerifyInfoResponse, VerifyResponse};
 use hpl_interface::to_binary;
-use hpl_interface::types::{bech32_decode, Message};
+use hpl_interface::types::Message;
 
 #[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
 pub fn instantiate(
@@ -113,7 +113,9 @@ fn handle_submit_meta(
 
     VERIFIED_IDS.save(deps.storage, packed_id.into(), &())?;
 
-    Ok(Response::default().add_event(new_event("submit_meta")))
+    Ok(Response::default()
+        .add_event(new_event("submit_meta"))
+        .add_attribute("packed_id", packed_id.to_hex()))
 }
 
 /// **unpack_verify_vaa** uses core wormhole contract to verify and unpack the vaa inside metadata
@@ -158,7 +160,7 @@ fn unpack_verify_vaa(
     );
     ensure_eq!(
         message.sender,
-        HexBinary::from(config.origin_sender),
+        config.origin_sender,
         ContractError::OriginDoesNotMatch
     );
 
