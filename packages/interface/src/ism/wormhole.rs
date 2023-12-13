@@ -10,9 +10,9 @@ pub struct InstantiateMsg {
 
     // TODO: comments
     pub emitter_chain: u16,
-    pub emitter_address: Vec<u8>,
+    pub emitter_address: HexBinary,
     pub origin_domain: u32,
-    pub origin_sender: Vec<u8>,
+    pub origin_sender: HexBinary,
 }
 
 #[cw_serde]
