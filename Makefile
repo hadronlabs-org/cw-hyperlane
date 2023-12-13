@@ -14,3 +14,8 @@ build-dev: clean
 
 check: build-dev
 	ls -d ./artifacts/*.wasm | xargs -I x cosmwasm-check x
+
+compile:
+	@./build_release.sh
+
+build-optimized: compile

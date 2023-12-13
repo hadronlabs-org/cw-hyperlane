@@ -111,7 +111,7 @@ fn handle_submit_meta(
     // unpack and verify vaa and check that the message is indeed (indeed what?)
     let packed_id = unpack_verify_vaa(deps.as_ref(), metadata, message)?;
 
-    VERIFIED_IDS.save(deps.storage, packed_id.into(), &())?;
+    VERIFIED_IDS.save(deps.storage, packed_id.clone().into(), &())?;
 
     Ok(Response::default()
         .add_event(new_event("submit_meta"))

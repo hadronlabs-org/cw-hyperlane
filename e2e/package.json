@@ -4,7 +4,7 @@
   "main": "vitest",
   "license": "MIT",
   "scripts": {
-    "test": "vitest --run",
+    "test": "vitest --run --bail 1",
     "watch": "vitest"
   },
   "dependencies": {
