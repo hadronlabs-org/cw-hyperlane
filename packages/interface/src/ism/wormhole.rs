@@ -9,10 +9,10 @@ pub struct InstantiateMsg {
     pub wormhole_core: String,
 
     // TODO: comments
-    pub emitter_chain: u16,
-    pub emitter_address: HexBinary,
-    pub origin_domain: u32,
-    pub origin_sender: HexBinary,
+    pub vaa_emitter_chain: u16,
+    pub vaa_emitter_address: HexBinary,
+    pub hyperlane_origin_domain: u32,
+    pub hyperlane_origin_sender: HexBinary,
 }
 
 #[cw_serde]

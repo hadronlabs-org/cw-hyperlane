@@ -6,12 +6,12 @@ use cw_storage_plus::{Item, Map};
 pub struct Config {
     // TODO: comments
     /// for wormhole verification
-    pub emitter_chain: u16,
-    pub emitter_address: HexBinary,
+    pub vaa_emitter_chain: u16,
+    pub vaa_emitter_address: HexBinary,
 
     /// for hyperlane message verification
-    pub origin_domain: u32,
-    pub origin_sender: HexBinary,
+    pub hyperlane_origin_domain: u32,
+    pub hyperlane_origin_sender: HexBinary,
 }
 
 /// **VERIFIED_IDS** contains all the `message.id`s (hash) that were verified by core wormhole contract

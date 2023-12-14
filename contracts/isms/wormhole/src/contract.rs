@@ -30,10 +30,10 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            emitter_chain: msg.emitter_chain,
-            emitter_address: msg.emitter_address,
-            origin_domain: msg.origin_domain,
-            origin_sender: msg.origin_sender,
+            vaa_emitter_chain: msg.vaa_emitter_chain,
+            vaa_emitter_address: msg.vaa_emitter_address,
+            hyperlane_origin_domain: msg.hyperlane_origin_domain,
+            hyperlane_origin_sender: msg.hyperlane_origin_sender,
         },
     )?;
 
@@ -145,23 +145,23 @@ fn unpack_verify_vaa(
     let config = CONFIG.load(deps.storage)?;
     ensure_eq!(
         parsed_vaa.emitter_chain,
-        config.emitter_chain,
-        ContractError::OriginDoesNotMatch
+        config.vaa_emitter_chain,
+        ContractError::VaaEmitterChainDoesNotMatch { vaa: parsed_vaa.emitter_chain, config: config.vaa_emitter_chain }
     );
     ensure_eq!(
         parsed_vaa.emitter_address,
-        config.emitter_address,
-        ContractError::OriginDoesNotMatch
+        config.vaa_emitter_address.to_vec(), // TODO: need to_vec()?
+        ContractError::VaaEmitterAddressDoesNotMatch
     );
     ensure_eq!(
         message.origin_domain,
-        config.origin_domain,
-        ContractError::OriginDoesNotMatch
+        config.hyperlane_origin_domain,
+        ContractError::MessageOriginDomainDoesNotMatch { message: parsed_vaa.emitter_chain, config: config.vaa_emitter_chain }
     );
     ensure_eq!(
         message.sender,
-        config.origin_sender,
-        ContractError::OriginDoesNotMatch
+        config.hyperlane_origin_sender,
+        ContractError::MessageOriginSenderDoesNotMatch { message: message.sender.to_hex(), config: config.hyperlane_origin_sender.to_hex() }
     );
 
     Ok(packed_id)
