@@ -14,6 +14,9 @@ const ETH_RPC_URL = 'http://localhost:8545';
 const ETH_PRIVATE_KEY =
   '0x6cbed15c793ce57650b9877cf6fa156fbef513c4e6134f022a85b1ffdd59b2a1'; // account 1
 
+// consts.ts
+export const TILTNET_GUARDIAN_PUBKEY = 'vvpCnVfNGLf4pNkaLamrSvBdD74=';
+
 import {
   CHAINS,
   CONTRACTS,
@@ -29,9 +32,13 @@ import { formatMessage, messageId } from '../src/helpers/hyperlane_copypaste';
 const WORMHOLE_RPC_URLS = ['http://localhost:7071'];
 const EMITTER_ADDRESS =
   '000000000000000000000000ffcf8fdee72ac11b5c542428b35eef5769c409f0';
-const EMITTER_ADDRESS_BASE = '0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0';
+// const EMITTER_ADDRESS_BASE = '0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0';
 const HYPERLANE_MESSAGE_ORIGIN_DOMAIN = 1; // TODO
-const HYPERLANE_MESSAGE_ORIGIN_SENDER = '0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0'; // TODO
+const HYPERLANE_MESSAGE_ORIGIN_SENDER =
+  '000000000000000000000000ffcf8fdee72ac11b5c542428b35eef5769c409f0'; // TODO
+const HYPERLANE_MESSAGE_ORIGIN_RECIPIENT =
+  '0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0'; // TODO
+const WORMHOLE_NEUTRON_CHAIN_ID = 4003;
 
 describe('Test Wormhole ISM', () => {
   const context: { park?: Cosmopark } = {};
@@ -48,9 +55,9 @@ describe('Test Wormhole ISM', () => {
     version: 1,
     nonce: 1,
     originDomain: 1,
-    senderAddr: EMITTER_ADDRESS_BASE,
+    senderAddr: HYPERLANE_MESSAGE_ORIGIN_RECIPIENT.toLowerCase(),
     destinationDomain: 2,
-    recipientAddr: EMITTER_ADDRESS_BASE,
+    recipientAddr: HYPERLANE_MESSAGE_ORIGIN_RECIPIENT.toLowerCase(),
     body: '0x123123',
   };
   const hexHyperlaneMessage = formatMessage(
@@ -116,10 +123,10 @@ describe('Test Wormhole ISM', () => {
         gov_address: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQ=',
         guardian_set_expirity: 86400,
         initial_guardian_set: {
-          addresses: [{ bytes: 'WMw65cCXshPOPIGXnhuflXB0aqU=' }],
+          addresses: [{ bytes: TILTNET_GUARDIAN_PUBKEY }],
           expiration_time: 0,
         },
-        chain_id: 4003,
+        chain_id: WORMHOLE_NEUTRON_CHAIN_ID,
         fee_denom: 'untrn',
       },
       'wormholeIbc',
@@ -141,18 +148,16 @@ describe('Test Wormhole ISM', () => {
     const neutronIsmCodeId = neutronWormholeIsmRes.codeId;
     expect(neutronIsmCodeId).toBeGreaterThan(0);
 
-    console.log('hex encoded: ' + EMITTER_ADDRESS_BASE.slice(2).toLowerCase());
-
     const neutronWormholeIsmInstantiateRes = await wasmClient.instantiate(
       deployer,
       neutronIsmCodeId,
       {
         owner: deployer,
         wormhole_core: wormholeIbcAddress,
-        emitter_chain: CHAINS['ethereum'],
-        emitter_address: EMITTER_ADDRESS_BASE.slice(2, null).toLowerCase(),
-        origin_domain: HYPERLANE_MESSAGE_ORIGIN_DOMAIN,
-        origin_sender: HYPERLANE_MESSAGE_ORIGIN_SENDER.slice(2, null).toLowerCase(),
+        vaa_emitter_chain: CHAINS['ethereum'],
+        vaa_emitter_address: EMITTER_ADDRESS,
+        hyperlane_origin_domain: HYPERLANE_MESSAGE_ORIGIN_DOMAIN,
+        hyperlane_origin_sender: HYPERLANE_MESSAGE_ORIGIN_SENDER.toLowerCase(),
       },
       'wormholeIbc',
       'auto',
@@ -193,8 +198,24 @@ describe('Test Wormhole ISM', () => {
     expect(signedVAA).not.toBeNull();
 
     parsedVaa = parseVaa(signedVAA);
-    expect(parsedVaa.payload.toString('hex')).toEqual(hyperlaneMessageId);
+    expect(parsedVaa.payload.toString('hex')).toEqual(
+      hyperlaneMessageId.slice(2),
+    );
   }, 1000000);
+
+  it('verifies vaa through wormhole core', async () => {
+    const res = await wasmClient.queryContractSmart(wormholeIbcAddress, {
+      verify_v_a_a: {
+        vaa: Buffer.from(signedVAA as Uint8Array).toString('base64'),
+        block_time: 0,
+      },
+    });
+    // console.log('query res: ' + JSON.stringify(res));
+    // TODO: validate it
+    expect(res.emitter_chain).toEqual(CHAINS['ethereum']);
+    // expect(res.sequence).toEqual()
+    // expect(res.emitter_address).toEqual()
+  });
 
   it('submits the VAA message with hyperlane message to verify to Neutron Wormhole ISM contract', async () => {
     const res = await wasmClient.execute(
@@ -203,24 +224,26 @@ describe('Test Wormhole ISM', () => {
       {
         submit_meta: {
           metadata: Buffer.from(signedVAA as Uint8Array).toString('hex'),
-          message: hexHyperlaneMessage,
+          message: hexHyperlaneMessage.slice(2),
         },
       },
       'auto',
-      '',
-      [{ amount: '8000', denom: 'untrn' }],
     );
     expect(res.events.length).toBeGreaterThan(0);
-    console.log(
-      'submit_meta result: \n' + JSON.stringify(res.logs) + '\n\n\n\n',
-    );
+    // extract packed_id from events
+    const packed_id = res.logs[0].events
+      .flatMap((e) => e.attributes)
+      .find((a) => a.key === 'packed_id').value;
+    expect(packed_id).toEqual(hyperlaneMessageId.slice(2));
   }, 1000000);
 
   it('verifies submitted message successfully', async () => {
     const res = await wasmClient.queryContractSmart(neutronWormholeIsmAddress, {
-      verify: {
-        metadata: Buffer.from(signedVAA as Uint8Array).toString('hex'),
-        message: hexHyperlaneMessage,
+      ism: {
+        verify: {
+          metadata: Buffer.from(signedVAA as Uint8Array).toString('hex'),
+          message: hexHyperlaneMessage.slice(2),
+        },
       },
     });
 
