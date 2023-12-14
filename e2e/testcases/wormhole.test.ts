@@ -23,21 +23,20 @@ import {
   getEmitterAddressEth,
   getSignedVAAWithRetry,
   parseSequenceFromLogEth,
-  ParsedVaa,
   parseVaa,
 } from '@certusone/wormhole-sdk';
 import { formatMessage, messageId } from '../src/helpers/hyperlane_copypaste';
 
 // tilt up devnet `WHAT?` address
 const WORMHOLE_RPC_URLS = ['http://localhost:7071'];
-const EMITTER_ADDRESS =
+const EMITTER_ADDRESS_PADDED =
   '000000000000000000000000ffcf8fdee72ac11b5c542428b35eef5769c409f0';
-// const EMITTER_ADDRESS_BASE = '0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0';
-const HYPERLANE_MESSAGE_ORIGIN_DOMAIN = 1; // TODO
-const HYPERLANE_MESSAGE_ORIGIN_SENDER =
-  '000000000000000000000000ffcf8fdee72ac11b5c542428b35eef5769c409f0'; // TODO
+const EMITTER_ADDRESS = '0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0';
+const HYPERLANE_MESSAGE_ORIGIN_DOMAIN = 1; // Q: what will it be?
+const HYPERLANE_MESSAGE_ORIGIN_SENDER = EMITTER_ADDRESS; // Q: will hyperlane sender === wormhole emitter?
+const HYPERLANE_MESSAGE_ORIGIN_SENDER_PADDED = EMITTER_ADDRESS_PADDED;
 const HYPERLANE_MESSAGE_ORIGIN_RECIPIENT =
-  '0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0'; // TODO
+  '0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0'; // Q: what will it be?
 const WORMHOLE_NEUTRON_CHAIN_ID = 4003;
 
 describe('Test Wormhole ISM', () => {
@@ -55,7 +54,7 @@ describe('Test Wormhole ISM', () => {
     version: 1,
     nonce: 1,
     originDomain: 1,
-    senderAddr: HYPERLANE_MESSAGE_ORIGIN_RECIPIENT.toLowerCase(),
+    senderAddr: HYPERLANE_MESSAGE_ORIGIN_SENDER.toLowerCase(),
     destinationDomain: 2,
     recipientAddr: HYPERLANE_MESSAGE_ORIGIN_RECIPIENT.toLowerCase(),
     body: '0x123123',
@@ -131,9 +130,6 @@ describe('Test Wormhole ISM', () => {
       },
       'wormholeIbc',
       'auto',
-      {
-        admin: deployer, // want to be able to migrate contract for testing purposes (set low timeout values)
-      },
     );
     wormholeIbcAddress = wormholeIbcInstantiateRes.contractAddress;
     expect(wormholeIbcAddress).toBeTruthy();
@@ -155,15 +151,13 @@ describe('Test Wormhole ISM', () => {
         owner: deployer,
         wormhole_core: wormholeIbcAddress,
         vaa_emitter_chain: CHAINS['ethereum'],
-        vaa_emitter_address: EMITTER_ADDRESS,
+        vaa_emitter_address: EMITTER_ADDRESS_PADDED,
         hyperlane_origin_domain: HYPERLANE_MESSAGE_ORIGIN_DOMAIN,
-        hyperlane_origin_sender: HYPERLANE_MESSAGE_ORIGIN_SENDER.toLowerCase(),
+        hyperlane_origin_sender:
+          HYPERLANE_MESSAGE_ORIGIN_SENDER_PADDED.toLowerCase(),
       },
       'wormholeIbc',
       'auto',
-      {
-        admin: deployer, // want to be able to migrate contract for testing purposes (set low timeout values)
-      },
     );
     neutronWormholeIsmAddress =
       neutronWormholeIsmInstantiateRes.contractAddress;
@@ -171,7 +165,6 @@ describe('Test Wormhole ISM', () => {
   }, 1000000);
 
   let signedVAA: Uint8Array;
-  let parsedVaa: ParsedVaa;
 
   it('publishes the VAA wormhole message', async () => {
     // create a signer for Eth
@@ -197,7 +190,7 @@ describe('Test Wormhole ISM', () => {
     signedVAA = vaaBytes;
     expect(signedVAA).not.toBeNull();
 
-    parsedVaa = parseVaa(signedVAA);
+    const parsedVaa = parseVaa(signedVAA);
     expect(parsedVaa.payload.toString('hex')).toEqual(
       hyperlaneMessageId.slice(2),
     );
@@ -213,8 +206,8 @@ describe('Test Wormhole ISM', () => {
     // console.log('query res: ' + JSON.stringify(res));
     // TODO: validate it
     expect(res.emitter_chain).toEqual(CHAINS['ethereum']);
-    // expect(res.sequence).toEqual()
-    // expect(res.emitter_address).toEqual()
+    // expect(res.sequence).toEqual();
+    // expect(res.emitter_address).toEqual();
   });
 
   it('submits the VAA message with hyperlane message to verify to Neutron Wormhole ISM contract', async () => {
