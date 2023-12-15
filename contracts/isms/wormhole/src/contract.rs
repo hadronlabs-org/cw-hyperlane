@@ -109,7 +109,7 @@ fn handle_submit_meta(
     message: HexBinary,
 ) -> Result<Response, ContractError> {
     // unpack and verify vaa and check that the message is indeed (indeed what?)
-    let packed_id = unpack_verify_vaa(deps.as_ref(), metadata, message)?;
+    let packed_id = verify_hyperlane_message_through_vaa(deps.as_ref(), metadata, message)?;
 
     VERIFIED_IDS.save(deps.storage, packed_id.clone().into(), &())?;
 
@@ -118,10 +118,45 @@ fn handle_submit_meta(
         .add_attribute("packed_id", packed_id.to_hex()))
 }
 
-/// **unpack_verify_vaa** uses core wormhole contract to verify and unpack the vaa inside metadata
+/// **verify** verifies that ISM approves this message
+/// **message** is the message to check if it's approved or not
+/// **metadata** is ? (can be vaa)
+fn verify(
+    deps: Deps,
+    _metadata: HexBinary, // Q: what is metadata supposed to be here?; do we need it?
+    message: HexBinary,
+) -> Result<VerifyResponse, ContractError> {
+    // 1. verify that the message is indeed passed the check (unnecessary since the message.id is unique anyway?)
+    let message_id = unpack_hyperlane_message_id(deps, message)?;
+
+    // 2. check the map
+    let verified = VERIFIED_IDS.has(deps.storage, message_id.into());
+
+    Ok(VerifyResponse { verified })
+}
+
+// TODO: what is this for?
+// TODO: implement
+fn verify_info(deps: Deps, _message: HexBinary) -> Result<VerifyInfoResponse, ContractError> {
+    // this is not entirely correct, but I don't see a better way to do this
+    // we cannot query validators from Wormhole Core contract
+    Ok(VerifyInfoResponse {
+        threshold: 1,
+        validators: vec![],
+    })
+}
+
+#[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+    Ok(Response::default())
+}
+
+
+/// **verify_hyperlane_message_through_vaa** uses core wormhole contract to verify and unpack the vaa inside metadata
 /// It also compares it to the message id.
 /// Also verify that that origin sender and origin chain is as expected.
-fn unpack_verify_vaa(
+/// Returns vaa message id
+fn verify_hyperlane_message_through_vaa(
     deps: Deps,
     metadata: HexBinary,
     message: HexBinary,
@@ -129,7 +164,7 @@ fn unpack_verify_vaa(
     let wormhole_core = WORMHOLE_CORE.load(deps.storage)?;
     let wormhole_query_msg = WormholeQueryMsg::VerifyVAA {
         vaa: Binary::from(metadata.as_slice()),
-        block_time: 0,
+        block_time: 0, // Q: what is block_time?
     };
     let parsed_vaa: ParsedVAA = deps
         .querier
@@ -150,13 +185,13 @@ fn unpack_verify_vaa(
     );
     ensure_eq!(
         parsed_vaa.emitter_address,
-        config.vaa_emitter_address.to_vec(), // TODO: need to_vec()?
+        config.vaa_emitter_address,
         ContractError::VaaEmitterAddressDoesNotMatch
     );
     ensure_eq!(
         message.origin_domain,
         config.hyperlane_origin_domain,
-        ContractError::MessageOriginDomainDoesNotMatch { message: parsed_vaa.emitter_chain, config: config.vaa_emitter_chain }
+        ContractError::MessageOriginDomainDoesNotMatch { message: message.origin_domain, config: config.hyperlane_origin_domain }
     );
     ensure_eq!(
         message.sender,
@@ -164,35 +199,24 @@ fn unpack_verify_vaa(
         ContractError::MessageOriginSenderDoesNotMatch { message: message.sender.to_hex(), config: config.hyperlane_origin_sender.to_hex() }
     );
 
-    Ok(packed_id)
+    Ok(id)
 }
 
-fn verify(
-    deps: Deps,
-    metadata: HexBinary,
-    message: HexBinary,
-) -> Result<VerifyResponse, ContractError> {
-    // 1. verify that the message is indeed passed the check (unnecessary since the message.id is unique anyway?)
-    let packed_id = unpack_verify_vaa(deps, metadata, message)?;
+fn unpack_hyperlane_message_id(deps: Deps, message: HexBinary) -> Result<HexBinary, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    let message: Message = message.into();
+    let id = message.id();
 
-    // 2. check the map
-    let verified = VERIFIED_IDS.has(deps.storage, packed_id.into());
+    ensure_eq!(
+        message.origin_domain,
+        config.hyperlane_origin_domain,
+        ContractError::MessageOriginDomainDoesNotMatch { message: message.origin_domain, config: config.hyperlane_origin_domain }
+    );
+    ensure_eq!(
+        message.sender,
+        config.hyperlane_origin_sender,
+        ContractError::MessageOriginSenderDoesNotMatch { message: message.sender.to_hex(), config: config.hyperlane_origin_sender.to_hex() }
+    );
 
-    Ok(VerifyResponse { verified })
-}
-
-// TODO: what is this for?
-// TODO: implement
-fn verify_info(deps: Deps, _message: HexBinary) -> Result<VerifyInfoResponse, ContractError> {
-    // this is not entirely correct, but I don't see a better way to do this
-    // we cannot query validators from Wormhole Core contract
-    Ok(VerifyInfoResponse {
-        threshold: 1,
-        validators: vec![],
-    })
-}
-
-#[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
-    Ok(Response::default())
+    Ok(id)
 }
