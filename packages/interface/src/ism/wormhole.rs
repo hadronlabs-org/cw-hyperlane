@@ -26,10 +26,10 @@ pub enum ExecuteMsg {
     /// **SubmitMeta** step is called by the wormhole relayer.
     /// We verify the metadata and compare it to the message id
     /// Then as we're sure that this metadata with message is legit,
-    /// We can check that this message id was passed in the `Verify` query
+    /// We can check that this message id was marked as verified in the `Verify` query
     SubmitMeta {
-        /// **metadata** is the wormhole vaa message packed into hex binary
-        metadata: HexBinary,
+        /// **vaa** is the wormhole vaa message packed into hex binary
+        vaa: HexBinary,
         /// **message** is the hyperlane message packed into hex binary
         message: HexBinary,
     },
