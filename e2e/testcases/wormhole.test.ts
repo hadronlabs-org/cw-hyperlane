@@ -215,7 +215,7 @@ describe('Test Wormhole ISM', () => {
       neutronWormholeIsmAddress,
       {
         submit_meta: {
-          metadata: Buffer.from(signedVAA as Uint8Array).toString('hex'),
+          vaa: Buffer.from(signedVAA as Uint8Array).toString('hex'),
           message: hexHyperlaneMessage.slice(2),
         },
       },
@@ -233,7 +233,7 @@ describe('Test Wormhole ISM', () => {
     const res = await wasmClient.queryContractSmart(neutronWormholeIsmAddress, {
       ism: {
         verify: {
-          metadata: Buffer.from(signedVAA as Uint8Array).toString('hex'),
+          metadata: '',
           message: hexHyperlaneMessage.slice(2),
         },
       },

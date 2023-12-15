@@ -57,8 +57,9 @@ pub fn execute(
         ExecuteMsg::SetWormholeCore { wormhole_core } => {
             handle_set_wormhole_core(deps, info, wormhole_core)
         }
-        // metadata is actually wormhole VAA data in order for it to work
-        ExecuteMsg::SubmitMeta { metadata, message } => handle_submit_meta(deps, metadata, message),
+        // **vaa** is wormhole VAA data in order for it to work
+        // **message** is hyperlane message
+        ExecuteMsg::SubmitMeta { vaa, message } => handle_submit_meta(deps, vaa, message),
     }
 }
 
@@ -105,11 +106,11 @@ fn handle_set_wormhole_core(
 
 fn handle_submit_meta(
     deps: DepsMut,
-    metadata: HexBinary,
+    vaa: HexBinary,
     message: HexBinary,
 ) -> Result<Response, ContractError> {
     // unpack and verify vaa and check that the message is indeed (indeed what?)
-    let packed_id = verify_hyperlane_message_through_vaa(deps.as_ref(), metadata, message)?;
+    let packed_id = verify_hyperlane_message_through_vaa(deps.as_ref(), vaa, message)?;
 
     VERIFIED_IDS.save(deps.storage, packed_id.clone().into(), &())?;
 
@@ -198,6 +199,8 @@ fn verify_hyperlane_message_through_vaa(
         config.hyperlane_origin_sender,
         ContractError::MessageOriginSenderDoesNotMatch { message: message.sender.to_hex(), config: config.hyperlane_origin_sender.to_hex() }
     );
+
+    // TODO: verify message.recipient?
 
     Ok(id)
 }

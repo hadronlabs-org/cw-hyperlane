@@ -100,6 +100,8 @@ fn handle_submit_meta(
         ContractError::InvalidOriginChain
     );
 
+    // TODO: verify recipient?
+
     VERIFIED_IDS.save(deps.storage, id, &())?;
 
     Ok(Response::default().add_event(new_event("")))
