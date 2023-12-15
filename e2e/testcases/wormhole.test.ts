@@ -8,15 +8,6 @@ import Cosmopark from '@neutron-org/cosmopark';
 import { ethers } from 'ethers';
 import { NodeHttpTransport } from '@improbable-eng/grpc-web-node-http-transport';
 import { Implementation__factory } from '@certusone/wormhole-sdk/lib/esm/ethers-contracts';
-// import { Client as NeutronClient } from '@neutron-org/client-ts';
-
-const ETH_RPC_URL = 'http://localhost:8545';
-const ETH_PRIVATE_KEY =
-  '0x6cbed15c793ce57650b9877cf6fa156fbef513c4e6134f022a85b1ffdd59b2a1'; // account 1
-
-// consts.ts
-export const TILTNET_GUARDIAN_PUBKEY = 'vvpCnVfNGLf4pNkaLamrSvBdD74=';
-
 import {
   CHAINS,
   CONTRACTS,
@@ -26,17 +17,23 @@ import {
   parseVaa,
 } from '@certusone/wormhole-sdk';
 import { formatMessage, messageId } from '../src/helpers/hyperlane_copypaste';
+// import { Client as NeutronClient } from '@neutron-org/client-ts';
 
-// tilt up devnet `WHAT?` address
-const WORMHOLE_RPC_URLS = ['http://localhost:7071'];
-const EMITTER_ADDRESS_PADDED =
+const TILTNET_ETH_RPC_URL = 'http://localhost:8545';
+const TILTNET_ETH_PRIVATE_KEY =
+  '0x6cbed15c793ce57650b9877cf6fa156fbef513c4e6134f022a85b1ffdd59b2a1'; // account 1
+// consts.ts
+const TILTNET_GUARDIAN_PUBKEY = 'vvpCnVfNGLf4pNkaLamrSvBdD74=';
+// tiltnet guardian public rest url
+const TILTNET_WORMHOLE_RPC_URLS = ['http://localhost:7071'];
+const VAA_EMITTER_ADDRESS_PADDED =
   '000000000000000000000000ffcf8fdee72ac11b5c542428b35eef5769c409f0';
-const EMITTER_ADDRESS = '0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0';
+const VAA_EMITTER_ADDRESS = '0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0';
 const HYPERLANE_MESSAGE_ORIGIN_DOMAIN = 1; // Q: what will it be?
-const HYPERLANE_MESSAGE_ORIGIN_SENDER = EMITTER_ADDRESS; // Q: will hyperlane sender === wormhole emitter?
-const HYPERLANE_MESSAGE_ORIGIN_SENDER_PADDED = EMITTER_ADDRESS_PADDED;
+const HYPERLANE_MESSAGE_ORIGIN_SENDER = VAA_EMITTER_ADDRESS; // Q: will hyperlane sender === wormhole emitter?
+const HYPERLANE_MESSAGE_ORIGIN_SENDER_PADDED = VAA_EMITTER_ADDRESS_PADDED;
 const HYPERLANE_MESSAGE_ORIGIN_RECIPIENT =
-  '0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0'; // Q: what will it be?
+  '0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0'; // Q: what will it be? is it ethereum address? should we validate it in the contract?
 const WORMHOLE_NEUTRON_CHAIN_ID = 4003;
 
 describe('Test Wormhole ISM', () => {
@@ -151,7 +148,7 @@ describe('Test Wormhole ISM', () => {
         owner: deployer,
         wormhole_core: wormholeIbcAddress,
         vaa_emitter_chain: CHAINS['ethereum'],
-        vaa_emitter_address: EMITTER_ADDRESS_PADDED,
+        vaa_emitter_address: VAA_EMITTER_ADDRESS_PADDED,
         hyperlane_origin_domain: HYPERLANE_MESSAGE_ORIGIN_DOMAIN,
         hyperlane_origin_sender:
           HYPERLANE_MESSAGE_ORIGIN_SENDER_PADDED.toLowerCase(),
@@ -168,8 +165,10 @@ describe('Test Wormhole ISM', () => {
 
   it('publishes the VAA wormhole message', async () => {
     // create a signer for Eth
-    const provider = new ethers.providers.WebSocketProvider(ETH_RPC_URL);
-    const signer = new ethers.Wallet(ETH_PRIVATE_KEY, provider);
+    const provider = new ethers.providers.WebSocketProvider(
+      TILTNET_ETH_RPC_URL,
+    );
+    const signer = new ethers.Wallet(TILTNET_ETH_PRIVATE_KEY, provider);
 
     const wormhole = Implementation__factory.connect(
       CONTRACTS.DEVNET.ethereum.core,
@@ -181,7 +180,7 @@ describe('Test Wormhole ISM', () => {
 
     // poll until the guardian(s) witness and sign the vaa
     const { vaaBytes } = await getSignedVAAWithRetry(
-      WORMHOLE_RPC_URLS,
+      TILTNET_WORMHOLE_RPC_URLS,
       CHAINS['ethereum'],
       getEmitterAddressEth(signer.address),
       parseSequenceFromLogEth(receipt, CONTRACTS.DEVNET.ethereum.core),

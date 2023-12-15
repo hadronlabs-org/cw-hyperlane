@@ -22,7 +22,7 @@ pub enum ContractError {
     VaaEmitterAddressDoesNotMatch,
 
     #[error("message origin domain does not match {message} != {config}")]
-    MessageOriginDomainDoesNotMatch  { message: u16, config: u16 },
+    MessageOriginDomainDoesNotMatch  { message: u32, config: u32 },
 
     #[error("message origin sender does not match {message} != {config}")]
     MessageOriginSenderDoesNotMatch { message: String, config: String },
