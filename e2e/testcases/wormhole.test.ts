@@ -26,12 +26,11 @@ const TILTNET_ETH_PRIVATE_KEY =
 const TILTNET_GUARDIAN_PUBKEY = 'vvpCnVfNGLf4pNkaLamrSvBdD74=';
 // tiltnet guardian public rest url
 const TILTNET_WORMHOLE_RPC_URLS = ['http://localhost:7071'];
-const VAA_EMITTER_ADDRESS_PADDED =
+const ORIGIN_ADDRESS_PADDED =
   '000000000000000000000000ffcf8fdee72ac11b5c542428b35eef5769c409f0';
-const VAA_EMITTER_ADDRESS = '0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0';
+const ORIGIN_ADDRESS = '0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0';
 const HYPERLANE_MESSAGE_ORIGIN_DOMAIN = 1; // Q: what will it be?
-const HYPERLANE_MESSAGE_ORIGIN_SENDER = VAA_EMITTER_ADDRESS; // Q: will hyperlane sender === wormhole emitter?
-const HYPERLANE_MESSAGE_ORIGIN_SENDER_PADDED = VAA_EMITTER_ADDRESS_PADDED;
+const HYPERLANE_MESSAGE_ORIGIN_SENDER = ORIGIN_ADDRESS; // Q: will hyperlane sender === wormhole emitter?
 const HYPERLANE_MESSAGE_ORIGIN_RECIPIENT =
   '0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0'; // Q: what will it be? is it ethereum address? should we validate it in the contract?
 const WORMHOLE_NEUTRON_CHAIN_ID = 4003;
@@ -103,7 +102,7 @@ describe('Test Wormhole ISM', () => {
     }
   });
 
-  it('deploys the wormhole core contracts', async () => {
+  it('deploys wormhole core contracts', async () => {
     const wormholeIbcRes = await wasmClient.upload(
       deployer,
       fs.readFileSync('./artifacts/contracts/wormhole_ibc-aarch64.wasm'),
@@ -139,7 +138,7 @@ describe('Test Wormhole ISM', () => {
   let hyperlaneAggregateIsmAddress: string;
   let hyperlaneWormholeIsmAddress: string;
 
-  it('deploys the hyperlane core contracts', async () => {
+  it('deploys hyperlane core contracts', async () => {
     // ==== 1. Deploy & store hl mailbox
     const mailboxRes = await wasmClient.upload(
       deployer,
@@ -238,10 +237,7 @@ describe('Test Wormhole ISM', () => {
         owner: deployer,
         wormhole_core: wormholeIbcAddress,
         vaa_emitter_chain: CHAINS['ethereum'],
-        vaa_emitter_address: VAA_EMITTER_ADDRESS_PADDED,
         hyperlane_origin_domain: HYPERLANE_MESSAGE_ORIGIN_DOMAIN,
-        hyperlane_origin_sender:
-          HYPERLANE_MESSAGE_ORIGIN_SENDER_PADDED.toLowerCase(),
       },
       'wormholeIbc',
       'auto',
@@ -282,9 +278,22 @@ describe('Test Wormhole ISM', () => {
     // }
   });
 
+  it('finalizes neutron wormhole setup', async () => {
+    await wasmClient.execute(
+      deployer,
+      hyperlaneWormholeIsmAddress,
+      {
+        set_origin_address: {
+          address: ORIGIN_ADDRESS_PADDED,
+        },
+      },
+      'auto',
+    );
+  }, 1000000);
+
   let signedVAA: Uint8Array;
 
-  it('publishes the VAA wormhole message', async () => {
+  it('publishes VAA wormhole message', async () => {
     // create a signer for Eth
     const provider = new ethers.providers.WebSocketProvider(
       TILTNET_ETH_RPC_URL,
@@ -330,7 +339,7 @@ describe('Test Wormhole ISM', () => {
     // expect(res.emitter_address).toEqual();
   });
 
-  it('submits the VAA message with hyperlane message to verify to Neutron Wormhole ISM contract', async () => {
+  it('submits VAA message with hyperlane message to verify to Neutron Wormhole ISM contract', async () => {
     const res = await wasmClient.execute(
       deployer,
       hyperlaneWormholeIsmAddress,

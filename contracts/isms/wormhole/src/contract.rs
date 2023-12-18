@@ -31,9 +31,8 @@ pub fn instantiate(
         deps.storage,
         &Config {
             vaa_emitter_chain: msg.vaa_emitter_chain,
-            vaa_emitter_address: msg.vaa_emitter_address,
             hyperlane_origin_domain: msg.hyperlane_origin_domain,
-            hyperlane_origin_sender: msg.hyperlane_origin_sender,
+            origin_address: None,
         },
     )?;
 
@@ -57,10 +56,29 @@ pub fn execute(
         ExecuteMsg::SetWormholeCore { wormhole_core } => {
             handle_set_wormhole_core(deps, info, wormhole_core)
         }
+        ExecuteMsg::SetOriginAddress { address } => handle_set_origin_address(deps, info, address),
         // **vaa** is wormhole VAA data in order for it to work
         // **message** is hyperlane message
         ExecuteMsg::SubmitMeta { vaa, message } => handle_submit_meta(deps, vaa, message),
     }
+}
+
+fn handle_set_origin_address(
+    deps: DepsMut,
+    info: MessageInfo,
+    address: HexBinary,
+) -> Result<Response, ContractError> {
+    ensure_eq!(
+        hpl_ownable::get_owner(deps.storage)?,
+        info.sender,
+        ContractError::Unauthorized
+    );
+
+    let mut config = CONFIG.load(deps.storage)?;
+    config.origin_address = Some(address);
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::new())
 }
 
 #[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
@@ -152,7 +170,6 @@ pub fn migrate(_deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contr
     Ok(Response::default())
 }
 
-
 /// **verify_hyperlane_message_through_vaa** uses core wormhole contract to verify and unpack the vaa inside metadata
 /// It also compares it to the message id.
 /// Also verify that that origin sender and origin chain is as expected.
@@ -179,25 +196,41 @@ fn verify_hyperlane_message_through_vaa(
     ensure_eq!(id, packed_id, ContractError::IdsDontMatch);
 
     let config = CONFIG.load(deps.storage)?;
+
+    let origin_address = config
+        .origin_address
+        .ok_or_else(|| ContractError::OriginAddressNotSet)?;
     ensure_eq!(
         parsed_vaa.emitter_chain,
         config.vaa_emitter_chain,
-        ContractError::VaaEmitterChainDoesNotMatch { vaa: parsed_vaa.emitter_chain, config: config.vaa_emitter_chain }
+        ContractError::VaaEmitterChainDoesNotMatch {
+            vaa: parsed_vaa.emitter_chain,
+            config: config.vaa_emitter_chain
+        }
     );
     ensure_eq!(
         parsed_vaa.emitter_address,
-        config.vaa_emitter_address,
-        ContractError::VaaEmitterAddressDoesNotMatch
+        origin_address,
+        ContractError::VaaEmitterAddressDoesNotMatch {
+            vaa: HexBinary::from(parsed_vaa.emitter_address).to_hex(),
+            config: origin_address.to_hex()
+        }
     );
     ensure_eq!(
         message.origin_domain,
         config.hyperlane_origin_domain,
-        ContractError::MessageOriginDomainDoesNotMatch { message: message.origin_domain, config: config.hyperlane_origin_domain }
+        ContractError::MessageOriginDomainDoesNotMatch {
+            message: message.origin_domain,
+            config: config.hyperlane_origin_domain
+        }
     );
     ensure_eq!(
         message.sender,
-        config.hyperlane_origin_sender,
-        ContractError::MessageOriginSenderDoesNotMatch { message: message.sender.to_hex(), config: config.hyperlane_origin_sender.to_hex() }
+        origin_address,
+        ContractError::MessageOriginSenderDoesNotMatch {
+            message: message.sender.to_hex(),
+            config: origin_address.to_hex()
+        }
     );
 
     // TODO: verify message.recipient?
@@ -210,15 +243,25 @@ fn unpack_hyperlane_message_id(deps: Deps, message: HexBinary) -> Result<HexBina
     let message: Message = message.into();
     let id = message.id();
 
+    let origin_address = config
+        .origin_address
+        .ok_or_else(|| ContractError::OriginAddressNotSet)?;
+
     ensure_eq!(
         message.origin_domain,
         config.hyperlane_origin_domain,
-        ContractError::MessageOriginDomainDoesNotMatch { message: message.origin_domain, config: config.hyperlane_origin_domain }
+        ContractError::MessageOriginDomainDoesNotMatch {
+            message: message.origin_domain,
+            config: config.hyperlane_origin_domain
+        }
     );
     ensure_eq!(
         message.sender,
-        config.hyperlane_origin_sender,
-        ContractError::MessageOriginSenderDoesNotMatch { message: message.sender.to_hex(), config: config.hyperlane_origin_sender.to_hex() }
+        origin_address,
+        ContractError::MessageOriginSenderDoesNotMatch {
+            message: message.sender.to_hex(),
+            config: origin_address.to_hex()
+        }
     );
 
     Ok(id)
