@@ -35,6 +35,8 @@ const HYPERLANE_MESSAGE_ORIGIN_SENDER_PADDED = VAA_EMITTER_ADDRESS_PADDED;
 const HYPERLANE_MESSAGE_ORIGIN_RECIPIENT =
   '0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0'; // Q: what will it be? is it ethereum address? should we validate it in the contract?
 const WORMHOLE_NEUTRON_CHAIN_ID = 4003;
+const HYPERLANE_MESSAGE_RECIPIENT_DOMAIN = 32; // TODO: real domain ID
+const HYPERLANE_HRP = 'neutron'; // TODO: correct?
 
 describe('Test Wormhole ISM', () => {
   const context: { park?: Cosmopark } = {};
@@ -44,7 +46,6 @@ describe('Test Wormhole ISM', () => {
   let deployer: string;
 
   let wormholeIbcAddress: string;
-  let neutronWormholeIsmAddress: string;
 
   // TODO: use real message
   const hyperlaneMessage = {
@@ -132,18 +133,107 @@ describe('Test Wormhole ISM', () => {
     expect(wormholeIbcAddress).toBeTruthy();
   }, 1000000);
 
-  it('deploys the neutron ISM contract', async () => {
-    const neutronWormholeIsmRes = await wasmClient.upload(
+  let hyperlaneMailboxAddress: string;
+  let hyperlaneVaaAddress: string;
+  let hyperlaneAggregateHookAddress: string;
+  let hyperlaneAggregateIsmAddress: string;
+  let hyperlaneWormholeIsmAddress: string;
+
+  it('deploys the hyperlane core contracts', async () => {
+    // ==== 1. Deploy & store hl mailbox
+    const mailboxRes = await wasmClient.upload(
+      deployer,
+      fs.readFileSync('../artifacts/hpl_mailbox-aarch64.wasm'),
+      1.5,
+    );
+    expect(mailboxRes.codeId).toBeGreaterThan(0);
+    const hyperlaneMailboxInstantiateRes = await wasmClient.instantiate(
+      deployer,
+      mailboxRes.codeId,
+      {
+        hrp: HYPERLANE_HRP,
+        owner: deployer,
+        domain: HYPERLANE_MESSAGE_RECIPIENT_DOMAIN,
+      },
+      'hlMailbox',
+      'auto',
+    );
+    hyperlaneMailboxAddress = hyperlaneMailboxInstantiateRes.contractAddress;
+    expect(hyperlaneMailboxAddress).toBeTruthy();
+
+    // ==== 2. Deploy & store hl vaa
+    const vaaRes = await wasmClient.upload(
+      deployer,
+      fs.readFileSync('../artifacts/hpl_validator_announce-aarch64.wasm'),
+      1.5,
+    );
+    expect(vaaRes.codeId).toBeGreaterThan(0);
+    const vaaInstantiateRes = await wasmClient.instantiate(
+      deployer,
+      vaaRes.codeId,
+      {
+        hrp: HYPERLANE_HRP,
+        mailbox: hyperlaneMailboxAddress,
+      },
+      'hlVaa',
+      'auto',
+    );
+    hyperlaneVaaAddress = vaaInstantiateRes.contractAddress;
+    expect(hyperlaneVaaAddress).toBeTruthy();
+
+    // TODO: 3. deploy hooks (aggregate, wormhole & axelar)
+    const aggregateHookRes = await wasmClient.upload(
+      deployer,
+      fs.readFileSync('../artifacts/hpl_hook_aggregate-aarch64.wasm'),
+      1.5,
+    );
+    expect(aggregateHookRes.codeId).toBeGreaterThan(0);
+    const aggregateHookInstantiateRes = await wasmClient.instantiate(
+      deployer,
+      aggregateHookRes.codeId,
+      {
+        owner: deployer,
+        hooks: [],
+      },
+      'hlAggregateHook',
+      'auto',
+    );
+    hyperlaneAggregateHookAddress = aggregateHookInstantiateRes.contractAddress;
+    expect(hyperlaneAggregateHookAddress).toBeTruthy();
+
+    // 4. Deploy ISM's (aggregate, wormhole & axelar)
+    const aggregateIsmRes = await wasmClient.upload(
+      deployer,
+      fs.readFileSync('../artifacts/hpl_ism_aggregate-aarch64.wasm'),
+      1.5,
+    );
+    expect(aggregateIsmRes.codeId).toBeGreaterThan(0);
+    const aggregateIsmInstantiateRes = await wasmClient.instantiate(
+      deployer,
+      aggregateIsmRes.codeId,
+      {
+        owner: deployer,
+        isms: [],
+        threshold: 1, // TODO: set to 2 when axelar ISM in place
+      },
+      'hlAggregateIsm',
+      'auto',
+    );
+    hyperlaneAggregateIsmAddress = aggregateIsmInstantiateRes.contractAddress;
+    expect(hyperlaneAggregateIsmAddress).toBeTruthy();
+
+    // wormhole
+    const hyperlaneWormholeIsmRes = await wasmClient.upload(
       deployer,
       fs.readFileSync('../artifacts/hpl_ism_wormhole-aarch64.wasm'),
       1.5,
     );
-    const neutronIsmCodeId = neutronWormholeIsmRes.codeId;
-    expect(neutronIsmCodeId).toBeGreaterThan(0);
+    const hyperlaneWormholeIsmCodeId = hyperlaneWormholeIsmRes.codeId;
+    expect(hyperlaneWormholeIsmCodeId).toBeGreaterThan(0);
 
-    const neutronWormholeIsmInstantiateRes = await wasmClient.instantiate(
+    const hyperlaneWormholeIsmInstantiateRes = await wasmClient.instantiate(
       deployer,
-      neutronIsmCodeId,
+      hyperlaneWormholeIsmCodeId,
       {
         owner: deployer,
         wormhole_core: wormholeIbcAddress,
@@ -156,10 +246,41 @@ describe('Test Wormhole ISM', () => {
       'wormholeIbc',
       'auto',
     );
-    neutronWormholeIsmAddress =
-      neutronWormholeIsmInstantiateRes.contractAddress;
-    expect(neutronWormholeIsmAddress).toBeTruthy();
-  }, 1000000);
+    hyperlaneWormholeIsmAddress =
+      hyperlaneWormholeIsmInstantiateRes.contractAddress;
+    expect(hyperlaneWormholeIsmAddress).toBeTruthy();
+
+    // 5. Set deployed hooks and isms for Mailbox
+    await wasmClient.execute(
+      deployer,
+      hyperlaneMailboxAddress,
+      {
+        set_default_ism: {
+          ism: hyperlaneAggregateIsmAddress,
+        },
+      },
+      'auto',
+    );
+    // set wormhole ISM to aggregate ISM
+    // todo: add axelar ISM as well
+    await wasmClient.execute(
+      deployer,
+      hyperlaneAggregateIsmAddress,
+      {
+        set_isms: {
+          isms: [hyperlaneWormholeIsmAddress],
+        },
+      },
+      'auto',
+    );
+    // todo: setup wormhole && axelar hooks
+    // set_default_hook {
+    //   hook: hyperlaneAggregateHookAddress
+    // }
+    // set_required_hook {
+    //   hook: hyperlaneAggregateHookAddress
+    // }
+  });
 
   let signedVAA: Uint8Array;
 
@@ -212,7 +333,7 @@ describe('Test Wormhole ISM', () => {
   it('submits the VAA message with hyperlane message to verify to Neutron Wormhole ISM contract', async () => {
     const res = await wasmClient.execute(
       deployer,
-      neutronWormholeIsmAddress,
+      hyperlaneWormholeIsmAddress,
       {
         submit_meta: {
           vaa: Buffer.from(signedVAA as Uint8Array).toString('hex'),
@@ -230,14 +351,17 @@ describe('Test Wormhole ISM', () => {
   }, 1000000);
 
   it('verifies submitted message successfully', async () => {
-    const res = await wasmClient.queryContractSmart(neutronWormholeIsmAddress, {
-      ism: {
-        verify: {
-          metadata: '',
-          message: hexHyperlaneMessage.slice(2),
+    const res = await wasmClient.queryContractSmart(
+      hyperlaneWormholeIsmAddress,
+      {
+        ism: {
+          verify: {
+            metadata: '',
+            message: hexHyperlaneMessage.slice(2),
+          },
         },
       },
-    });
+    );
 
     expect(res.verified).toBeTruthy();
   });
