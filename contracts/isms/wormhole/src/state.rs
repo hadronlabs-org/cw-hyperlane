@@ -7,11 +7,12 @@ pub struct Config {
     // TODO: comments
     /// for wormhole verification
     pub vaa_emitter_chain: u16,
-    pub vaa_emitter_address: HexBinary,
 
     /// for hyperlane message verification
     pub hyperlane_origin_domain: u32,
-    pub hyperlane_origin_sender: HexBinary,
+
+    // for both hyperlane && wormhole vaa verification
+    pub origin_address: Option<HexBinary>,
 }
 
 /// **VERIFIED_IDS** contains all the `message.id`s (hash) that were verified by core wormhole contract

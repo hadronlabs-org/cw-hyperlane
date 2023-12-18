@@ -8,19 +8,22 @@ pub struct InstantiateMsg {
     pub owner: String,
     pub wormhole_core: String,
 
-    // TODO: comments
     pub vaa_emitter_chain: u16,
-    pub vaa_emitter_address: HexBinary,
     pub hyperlane_origin_domain: u32,
-    pub hyperlane_origin_sender: HexBinary,
 }
 
 #[cw_serde]
 pub enum ExecuteMsg {
     Ownable(OwnableMsg),
 
+    /// **SetWormholeCore** sets the wormhole core contract address that we use to verify VAA message
     SetWormholeCore {
         wormhole_core: String,
+    },
+
+    /// **SetOriginAddress** sets the origin EVM address that we check for wormhole VAA message and for hyperlane message
+    SetOriginAddress {
+        address: HexBinary,
     },
 
     /// **SubmitMeta** step is called by the wormhole relayer.
