@@ -25,8 +25,8 @@ pub fn instantiate(
 
     let config = Config {
         axelar_hook_sender: msg.axelar_hook_sender,
-        origin_address: msg.origin_address,
         origin_chain: msg.origin_chain,
+        origin_address: None,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -46,6 +46,7 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Ownable(msg) => Ok(hpl_ownable::handle(deps, env, info, msg)?),
+        ExecuteMsg::SetOriginAddress { address } => handle_set_origin_address(deps, info, address),
         // metadata is actually VAA data in order for it to work
         ExecuteMsg::SubmitMeta {
             origin_address,
@@ -72,13 +73,30 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<QueryResponse, Contr
     }
 }
 
-// TODO
+fn handle_set_origin_address(
+    deps: DepsMut,
+    info: MessageInfo,
+    address: String,
+) -> Result<Response, ContractError> {
+    ensure_eq!(
+        hpl_ownable::get_owner(deps.storage)?,
+        info.sender,
+        ContractError::Unauthorized
+    );
+
+    let mut config = CONFIG.load(deps.storage)?;
+    config.origin_address = Some(address);
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::new())
+}
+
 fn handle_submit_meta(
     deps: DepsMut,
     info: MessageInfo,
-    origin_address: String, // TODO: naming
-    origin_chain: String,   // TODO: naming
-    id: Vec<u8>,            // TODO: what to send into this arg to be decoded as Vec<u8>
+    origin_address: String,
+    origin_chain: String,
+    id: HexBinary,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
@@ -88,8 +106,11 @@ fn handle_submit_meta(
         ContractError::Unauthorized
     );
 
+    let config_origin_address = config
+        .origin_address
+        .ok_or_else(|| ContractError::OriginAddressNotSet)?;
     ensure_eq!(
-        config.origin_address,
+        config_origin_address,
         origin_address,
         ContractError::InvalidOriginAddress
     );
@@ -102,12 +123,11 @@ fn handle_submit_meta(
 
     // TODO: verify recipient?
 
-    VERIFIED_IDS.save(deps.storage, id, &())?;
+    VERIFIED_IDS.save(deps.storage, id.to_vec(), &())?;
 
     Ok(Response::default().add_event(new_event("")))
 }
 
-// TODO
 fn verify(
     deps: Deps,
     _metadata: HexBinary,

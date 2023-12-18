@@ -11,7 +11,7 @@ pub struct Config {
 
     /// **origin_address** is an address.
     /// It represents expected origin address on EVM side
-    pub origin_address: String,
+    pub origin_address: Option<String>,
 
     /// **origin_address** is a chain ID.
     /// It represents expected origin chain id on EVM side

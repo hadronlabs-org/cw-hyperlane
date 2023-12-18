@@ -26,6 +26,10 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     Ownable(OwnableMsg),
 
+    SetOriginAddress {
+        address: String,
+    },
+
     /// **SubmitMeta** step is called by the wormhole relayer.
     /// We verify the metadata and compare it to the message id
     /// Then as we're sure that this metadata with message is legit,
@@ -34,7 +38,7 @@ pub enum ExecuteMsg {
     SubmitMeta {
         origin_address: String,
         origin_chain: String,
-        id: Vec<u8>,
+        id: HexBinary,
     },
 }
 
