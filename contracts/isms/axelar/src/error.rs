@@ -9,6 +9,9 @@ pub enum ContractError {
     #[error("unauthorized")]
     Unauthorized,
 
+    #[error("origin address not set")]
+    OriginAddressNotSet,
+
     #[error("invalid origin address")]
     InvalidOriginAddress,
 
