@@ -264,7 +264,7 @@ impl IGPMetadata {
         bech32_encode(hrp, &raw_addr).unwrap()
     }
 }
-
+#[cw_serde]
 pub struct AxelarMetadata {
     pub gas_amount: u128,
 }
