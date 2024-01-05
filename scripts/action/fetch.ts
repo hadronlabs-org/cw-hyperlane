@@ -17,6 +17,10 @@ import HplTestMockHook from "../src/contracts/hpl_test_mock_hook";
 import HplTestMockMsgReceiver from "../src/contracts/hpl_test_mock_msg_receiver";
 import HplWarpCw20 from "../src/contracts/hpl_warp_cw20";
 import HplWarpNative from "../src/contracts/hpl_warp_native";
+import HplHookWormhole from "../src/contracts/hpl_hook_wormhole";
+import HplHookAxelar from "../src/contracts/hpl_hook_axelar";
+import HplIsmWormhole from "../src/contracts/hpl_ism_wormhole";
+import HplIsmAxelar from "../src/contracts/hpl_ism_axelar";
 
 type Const<T> = new (
   address: string | undefined,
@@ -38,6 +42,8 @@ export type Contracts = {
     routing: HplHookRouting;
     routing_custom: HplHookRoutingCustom;
     routing_fallback: HplHookRoutingCustom;
+    wormhole: HplHookWormhole;
+    axelar: HplHookAxelar;
   };
   igp: {
     core: HplIgp;
@@ -47,6 +53,8 @@ export type Contracts = {
     aggregate: HplIsmAggregate;
     multisig: HplIsmMultisig;
     routing: HplIsmRouting;
+    wormhole: HplIsmWormhole;
+    axelar: HplIsmAxelar;
   };
   mocks: {
     hook: HplTestMockHook;
@@ -62,6 +70,7 @@ export class ContractFetcher {
   constructor(private ctx: Context, private client: Client) {}
 
   public get<T>(f: Const<T>, name: string): T {
+    console.log("fetch: " + name)
     return new f(
       this.ctx.contracts[name].address,
       this.ctx.contracts[name].codeId,
@@ -90,6 +99,8 @@ export class ContractFetcher {
           HplHookRoutingCustom,
           "hpl_hook_routing_fallback"
         ),
+        axelar: this.get(HplHookAxelar, "hpl_hook_axelar"),
+        wormhole: this.get(HplHookWormhole, "hpl_hook_wormhole")
       },
       igp: {
         core: this.get(HplIgp, "hpl_igp"),
@@ -99,6 +110,9 @@ export class ContractFetcher {
         aggregate: this.get(HplIsmAggregate, "hpl_ism_aggregate"),
         multisig: this.get(HplIsmMultisig, "hpl_ism_multisig"),
         routing: this.get(HplIsmRouting, "hpl_ism_routing"),
+        axelar: this.get(HplIsmAxelar, "hpl_ism_axelar"),
+        wormhole: this.get(HplIsmWormhole, "hpl_ism_wormhole")
+
       },
       mocks: {
         hook: this.get(HplTestMockHook, "hpl_test_mock_hook"),

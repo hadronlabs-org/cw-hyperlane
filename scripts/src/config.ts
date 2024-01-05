@@ -46,6 +46,20 @@ export type HookType =
     }
   | { type: "aggregate"; owner: string; hooks: HookType[] }
   | {
+    type: "wormhole";
+    owner: string;
+    wormhole_core: string;
+    }
+  | {
+    type: "axelar";
+    owner: string;
+    destination_chain: string;
+    destination_contract: string;
+    destination_ism: string;
+    axelar_gateway_channel: string;
+    gas_token: string;
+    }
+  | {
       type: "routing";
       owner: string;
       hooks: { [domain: number]: HookType };
