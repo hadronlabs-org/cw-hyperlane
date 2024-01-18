@@ -44,7 +44,7 @@ pub const GAS_TOKEN: Item<String> = Item::new(GAS_TOKEN_KEY);
 
 
 fn new_event(name: &str) -> Event {
-    Event::new(format!("hpl_hook_pausable::{}", name))
+    Event::new(format!("hpl_hook_axelar::{}", name))
 }
 
 #[derive(thiserror::Error, Debug, PartialEq)]

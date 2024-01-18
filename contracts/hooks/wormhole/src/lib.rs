@@ -32,7 +32,7 @@ pub const MAILBOX_KEY: &str = "mailbox";
 pub const MAILBOX: Item<Addr> = Item::new(MAILBOX_KEY);
 
 fn new_event(name: &str) -> Event {
-    Event::new(format!("hpl_hook_pausable::{}", name))
+    Event::new(format!("hpl_hook_wormhole::{}", name))
 }
 
 #[derive(thiserror::Error, Debug, PartialEq)]
