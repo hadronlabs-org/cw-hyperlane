@@ -252,14 +252,20 @@ const deploy_ism = async (
       return multisig_ism_res.address!;
 
     case "aggregate":
+      const aggregate_ism_addrs = [];
+      for (let sub_ism of ism.isms){
+        const addr = await deploy_ism(client, sub_ism, contracts)
+        aggregate_ism_addrs.push(addr)
+      }
+
       const aggregate_ism_res = await isms.aggregate.instantiate({
         owner: ism.owner === "<signer>" ? client.signer : ism.owner,
-        isms: await Promise.all(
-          ism.isms.map((v) => deploy_ism(client, v, contracts))
-        ),
+        isms: aggregate_ism_addrs,
+        threshold: ism.threshold,
       });
 
       return aggregate_ism_res.address!;
+
     case "routing":
       const routing_ism_res = await isms.routing.instantiate({
         owner: ism.owner === "<signer>" ? client.signer : ism.owner,
@@ -305,11 +311,14 @@ const deploy_hook = async (
 
   switch (hook.type) {
     case "aggregate":
+      const aggregate_hook_addrs = [];
+      for (let sub_hook of hook.hooks){
+        const addr = await deploy_hook(ctx, client, sub_hook, contracts)
+        aggregate_hook_addrs.push(addr)
+      }
       const aggregate_hook_res = await hooks.aggregate.instantiate({
         owner: hook.owner === "<signer>" ? client.signer : hook.owner,
-        hooks: await Promise.all(
-          hook.hooks.map((v) => deploy_hook(ctx, client, v, contracts))
-        ),
+        hooks: aggregate_hook_addrs,
       });
 
       return aggregate_hook_res.address!;
