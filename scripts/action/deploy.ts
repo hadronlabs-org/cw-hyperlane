@@ -84,8 +84,8 @@ const deploy_core = async (
 
   // init validator announce
   ctx.contracts[name(va)] = await va.instantiate({
-    hrp: config.network.hrp,
-    mailbox: addr(ctx, mailbox),
+  hrp: config.network.hrp,
+  mailbox: addr(ctx, mailbox),
   });
 
   return ctx;
@@ -210,7 +210,7 @@ const deploy_ism = async (
   contracts: Contracts
 ): Promise<string> => {
   const { isms } = contracts;
-
+  
   switch (ism.type) {
     case "multisig":
       const multisig_ism_res = await isms.multisig.instantiate({
@@ -291,6 +291,29 @@ const deploy_ism = async (
 
       return routing_ism_res.address!;
 
+      case "wormhole":
+        const wormhole_ism_res = await isms.wormhole.instantiate({
+          owner: ism.owner === "<signer>" ? client.signer : ism.owner,
+          wormhole_core: ism.wormhole_core,
+          emitter_chain: ism.emitter_chain,
+          emitter_address: ism.emitter_address,
+          origin_domain: ism.origin_domain,
+          origin_sender: ism.origin_sender,
+        });
+  
+        return wormhole_ism_res.address!;
+
+      case "axelar":
+          const axelar_ism_res = await isms.axelar.instantiate({
+            owner: ism.owner === "<signer>" ? client.signer : ism.owner,
+            axelar_hook_sender: ism.axelar_hook_sender,
+            origin_address: ism.origin_address,
+            origin_chain: ism.origin_chain,
+          });
+    
+          return axelar_ism_res.address!;
+
+
     default:
       throw new Error("invalid ism type");
   }
@@ -368,22 +391,27 @@ const deploy_hook = async (
         },
         "auto"
       );
+
     case "wormhole":
-      const womrhole_hook_res = await hooks.wormhole.instantiate({
+      const wormhole_hook_res = await hooks.wormhole.instantiate({
         owner: hook.owner === "<signer>" ? client.signer : hook.owner,
-        wormhole_core: hook.owner,
-        });
-        return womrhole_hook_res.address!;
+        wormhole_core: hook.wormhole_core,
+        mailbox: addr(ctx, mailbox),
+      });
+        return wormhole_hook_res.address!;
+
     case "axelar":
-      const axelar_hook_res = await hooks.wormhole.instantiate({
+      const axelar_hook_res = await hooks.axelar.instantiate({
         owner: hook.owner === "<signer>" ? client.signer : hook.owner,
         destination_chain: hook.destination_chain,
         destination_contract: hook.destination_contract,
         destination_ism: hook.destination_ism,
         axelar_gateway_channel: hook.axelar_gateway_channel,
         gas_token: hook.gas_token,
+        mailbox: addr(ctx, mailbox),
       });
         return axelar_hook_res.address!
+
     default:
       throw new Error("invalid hook type");
   }

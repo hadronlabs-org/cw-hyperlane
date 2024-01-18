@@ -28,7 +28,24 @@ export type IsmType =
       type: "routing";
       owner: string;
       isms: { [domain: number]: IsmType };
-    };
+    }
+  | { 
+    type: "wormhole";
+    owner: string;
+    wormhole_core: string;
+    emitter_chain: number;
+    emitter_address: number[];
+    origin_domain: number;
+    origin_sender: number[];
+
+    }
+  | {
+    type: "axelar";
+    owner: string;
+    axelar_hook_sender: string;
+    origin_address: string;
+    origin_chain: string;
+  };
 
 export type HookType =
   | {
