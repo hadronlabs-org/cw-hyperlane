@@ -100,7 +100,8 @@ pub fn execute(
             dest_domain,
             recipient,
             amount,
-        } => transfer_remote(deps, env, info, dest_domain, recipient, amount),
+            metadata,
+        } => transfer_remote(deps, env, info, dest_domain, recipient, amount, metadata),
     }
 }
 
@@ -182,6 +183,7 @@ fn transfer_remote(
     dest_domain: u32,
     recipient: HexBinary,
     transfer_amount: Uint128,
+    metadata: Option<HexBinary>,
 ) -> Result<Response, ContractError> {
     let token = TOKEN.load(deps.storage)?;
     let mode = MODE.load(deps.storage)?;
@@ -215,7 +217,7 @@ fn transfer_remote(
     let dispatch_payload = warp::Message {
         recipient: recipient.clone(),
         amount: Uint256::from_uint128(transfer_amount),
-        metadata: HexBinary::default(),
+        metadata: metadata.unwrap_or(HexBinary::default())
     };
 
     // push mailbox dispatch msg
@@ -532,6 +534,7 @@ mod test {
                 dest_domain,
                 recipient: dest_recipient.clone(),
                 amount: Uint128::new(50),
+                metadata: None,
             },
             funds.clone(),
         );
