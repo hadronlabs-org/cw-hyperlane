@@ -40,7 +40,7 @@ pub enum QueryMsg {
 #[derive(QueryResponses)]
 pub enum AxelarQueryMsg {
     #[returns(AxelarInfoResponse)]
-    PauseInfo {},
+    Info {},
 }
 
 #[cw_serde]

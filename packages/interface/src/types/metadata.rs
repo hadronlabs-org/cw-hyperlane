@@ -272,8 +272,19 @@ pub struct AxelarMetadata {
 impl From<HexBinary> for AxelarMetadata {
     fn from(v: HexBinary) -> Self {
         Self {
-            gas_amount: u128::from_be_bytes(v[0..32].try_into().unwrap()),
+            gas_amount: u128::from_be_bytes(v[0..16].try_into().unwrap()),
         }
+    }
+}
+
+impl From<AxelarMetadata> for HexBinary {
+    fn from(v: AxelarMetadata) -> Self {
+        v.gas_amount
+            .to_be_bytes()
+            .iter()
+            .cloned()
+            .collect::<Vec<u8>>()
+            .into()
     }
 }
 

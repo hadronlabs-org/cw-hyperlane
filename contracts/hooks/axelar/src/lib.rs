@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use serde_json_wasm::to_string;
-use cosmwasm_std::{Event, MessageInfo, ensure_eq, QueryResponse, Response, DepsMut, Deps, Env, StdResult, StdError, Addr, coin};
+use cosmwasm_std::{Event, MessageInfo, ensure_eq, QueryResponse, Response, DepsMut, Deps, Env, StdResult, StdError, Addr, coin, HexBinary};
 use cw_storage_plus::Item;
 use hpl_interface::{
     core::mailbox::{LatestDispatchedIdResponse, MailboxQueryMsg},
@@ -64,7 +64,12 @@ pub enum ContractError {
     #[error("invalid recipient address")]
     InvalidRecipientAddress {address: String},
 
+    #[error("last_dispatch query failed ")]
+    LastDispatchQueryFailed {},
 
+    #[error("last_dispatch id mismatch ")]
+    // TODO: can probably get rid of this, just for debugging
+    LastDispatchIDMismatch {got: HexBinary, expected: HexBinary},
 
 }
 
@@ -154,12 +159,16 @@ fn post_dispatch(
   
     // Ensure message_id matches latest dispatch from mailbox
     let mailbox = MAILBOX.load(deps.storage)?;
-    let latest_dispatch_id = deps
+    let latest_dispatch_resp = deps
         .querier
         .query_wasm_smart::<LatestDispatchedIdResponse>(
             &mailbox,
-            &MailboxQueryMsg::LatestDispatchId {}.wrap(),
-        )?
+            &MailboxQueryMsg::LatestDispatchId {},
+        ).or_else(|_| {
+            return Err(ContractError::LastDispatchQueryFailed {})
+        });
+
+    let latest_dispatch_id = latest_dispatch_resp.unwrap()
         .message_id;
 
     let decoded_msg: Message = req.message.clone().into();
@@ -167,7 +176,7 @@ fn post_dispatch(
     ensure_eq!(
         latest_dispatch_id,
         decoded_msg.id(),
-        ContractError::Unauthorized {}
+        ContractError::LastDispatchIDMismatch {got: decoded_msg.id(), expected: latest_dispatch_id }
     );
 
     //send message to axelar gateway
@@ -175,24 +184,25 @@ fn post_dispatch(
     let desination_contract = DESTINATION_CONTRACT.load(deps.storage)?;
     let desination_ism = DESTINATION_ISM.load(deps.storage)?;
     let axelar_gateway_channel = AXELAR_GATEWAY_CHANNEL.load(deps.storage)?;
-    let recipients = vec![desination_ism];
 
     // TODO: do we need to pass a fee?
-    multi_send_to_evm(deps, env, info, axelar_gateway_channel, desination_chain, desination_contract, recipients, None)
+    send_to_evm(deps, env, info, req.message, axelar_gateway_channel, desination_chain, desination_contract, vec![desination_ism], None,)
 
 }
 
-pub fn multi_send_to_evm(
+pub fn send_to_evm(
     _deps: DepsMut,
     env: Env,
     info: MessageInfo,
+    message: HexBinary,
     gateway_channel: String,
     destination_chain: String,
     destination_contract: String,
-    recipients: Vec<String>,
+    destination_recipients: Vec<String>,
     fee: Option<AxelarFee>
 ) -> Result<Response, ContractError> {
-    let addresses = recipients
+
+    let addresses = destination_recipients
     .into_iter()
     .map(|s| {
         match s.parse::<H160>() {
@@ -201,21 +211,22 @@ pub fn multi_send_to_evm(
         }
     })
     .collect::<Result<Vec<Token>, ContractError>>()?;
-    let payload = encode(&[Token::Array(addresses)]);
+
+    let payload = encode(&[Token::Array(addresses), Token::String(message.to_hex())]);
 
     let msg = AxelarGeneralMessage {
         destination_chain,
-        destination_address: destination_contract.clone(),
+        destination_address: destination_contract,
         payload,
         type_: 2,
         fee
     };
 
-    let coin = cw_utils::one_coin(&info).unwrap();
+    // let coin = cw_utils::one_coin(&info).unwrap();
     let ibc_transfer = MsgTransfer {
         source_port: "transfer".to_string(),
         source_channel: gateway_channel,
-        token: Some(coin.into()),
+        token: None,
         sender: env.contract.address.to_string(),
         receiver: AXELAR_GATEWAY.to_string(),
         timeout_height: None,
