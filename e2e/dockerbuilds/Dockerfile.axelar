@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1
+
+# Download axelar binary for alpine image
+FROM ubuntu:22.04
+
+# Define a build argument for architecture
+ARG ARCH=arm64
+
+RUN apt update && apt install -y wget curl
+
+# Download axelar binary for alpine image
+RUN wget https://github.com/axelarnetwork/axelar-core/releases/download/v0.34.1/axelard-linux-${ARCH}-v0.34.1 -O axelard \
+  && chmod +x axelard \
+  && mv axelard /usr/local/bin/
+
+# RUN mkdir -p /abc/axelar
+COPY --from=app --chmod=0755 ./dockerbuilds/axelar /app/axelar/
+RUN ["chmod", "+x", "/app/axelar"]
+
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD \
+  curl -f http://127.0.0.1:1317/cosmos/base/tendermint/v1beta1/blocks/1 >/dev/null 2>&1 || exit 1
+
+ENTRYPOINT ["axelard"]

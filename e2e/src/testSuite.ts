@@ -15,37 +15,46 @@ const keys = [
 ] as const;
 
 const networkConfigs = {
-  // gaia: {
-  //   binary: 'gaiad',
-  //   chain_id: 'testgaia-1',
-  //   denom: 'uatom',
-  //   image: 'gaia-node-airdroptest',
-  //   prefix: 'cosmos',
-  //   validators: 1,
-  //   validators_balance: '1000000000',
-  //   genesis_opts: {
-  //     'app_state.staking.params.bond_denom': 'uatom',
-  //     'app_state.interchainaccounts.host_genesis_state.params.allow_messages': [
-  //       '*',
-  //     ],
-  //   },
-  //   config_opts: {
-  //     'rpc.laddr': 'tcp://0.0.0.0:26657',
-  //   },
-  //   app_opts: {
-  //     'api.enable': true,
-  //     'api.swagger': true,
-  //     'grpc.enable': true,
-  //     'minimum-gas-prices': '0uatom',
-  //     'rosetta.enable': true,
-  //   },
-  // },
+  axelar: {
+    type: 'axelar',
+    binary: '/app/axelar/init_axelar.sh',
+    chain_id: 'axelar',
+    denom: 'uaxl',
+    image: 'axelar/core',
+    prefix: 'axelar',
+    loglevel: true,
+    validators: 1,
+    validators_balance: '1000000000',
+    genesis_opts: {
+      'app_state.globalfee.minimum_gas_prices': [
+        {
+          denom:
+            'ibc/27394FB092D2ECCD56123C74F36E4C1F926001CEADA9CA97EA622B25F41E5EB2',
+          amount: '0',
+        },
+        { denom: 'untrn', amount: '0' },
+      ],
+    },
+    // upload: ['./dockerbuilds/axelar'],
+    post_init: ['CHAINID=axelar /app/axelar/setup.sh'],
+    config_opts: {
+      'rpc.laddr': 'tcp://0.0.0.0:26657',
+    },
+    app_opts: {
+      'api.enable': true,
+      'api.swagger': true,
+      'grpc.enable': true,
+      'minimum-gas-prices': '0uaxlr',
+      'rosetta.enable': true,
+    },
+  },
   neutron: {
     binary: 'neutrond',
     chain_id: 'testneutron-1',
     denom: 'untrn',
     image: 'neutron-node',
     prefix: 'neutron',
+    loglevel: true,
     trace: true,
     type: 'ics',
     upload: [
@@ -93,6 +102,7 @@ type Keys = (typeof keys)[number];
 
 const awaitFirstBlock = async (rpc: string): Promise<void> =>
   waitFor(async () => {
+    console.log('awaiting first block');
     try {
       const client = await StargateClient.connect(rpc);
       const block = await client.getBlock();
@@ -100,6 +110,7 @@ const awaitFirstBlock = async (rpc: string): Promise<void> =>
         return true;
       }
     } catch (e) {
+      console.log('awaiting first block error : ' + e);
       return false;
     }
   }, 20_000);
@@ -143,7 +154,7 @@ export const generateWallets = async (): Promise<Record<Keys, string>> =>
   );
 
 export const setupPark = async (
-  context = 'lido',
+  context = 'steth',
   networks: string[] = [],
   needRelayers = false,
 ): Promise<cosmopark> => {
@@ -159,6 +170,7 @@ export const setupPark = async (
       demo2: { mnemonic: wallets.demo2, balance: '1000000000' },
       demo3: { mnemonic: wallets.demo3, balance: '1000000000' },
     },
+    log_level: 'debug',
   };
   for (const network of networks) {
     config.networks[network] = networkConfigs[network];
@@ -173,7 +185,9 @@ export const setupPark = async (
       } as any,
     ];
   }
+  console.log('before cosmopark.crate');
   const instance = await cosmopark.create(config);
+  console.log('after cosmopark.crate');
   await Promise.all(
     Object.entries(instance.ports).map(([_network, ports]) =>
       awaitFirstBlock(`127.0.0.1:${ports.rpc}`).catch((e) => {

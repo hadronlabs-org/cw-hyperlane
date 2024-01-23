@@ -5,9 +5,12 @@
   "license": "MIT",
   "scripts": {
     "test": "vitest --run --bail 1",
+    "test:axelar": "vitest --run --bail 1 axelar",
     "watch": "vitest"
   },
   "dependencies": {
+    "@axelar-network/axelar-local-dev": "2.2.0-alpha.27",
+    "@axelar-network/axelar-local-dev-cosmos": "^2.2.0-alpha.27",
     "@certusone/wormhole-sdk": "^0.10.5",
     "@certusone/wormhole-sdk-proto-web": "^0.0.7",
     "@cosmjs/amino": "^0.31.0",

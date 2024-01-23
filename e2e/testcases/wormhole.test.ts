@@ -200,7 +200,7 @@ describe('Test Wormhole ISM', () => {
     hyperlaneAggregateHookAddress = aggregateHookInstantiateRes.contractAddress;
     expect(hyperlaneAggregateHookAddress).toBeTruthy();
 
-    // 4. Deploy ISM's (aggregate, wormhole & axelar)
+    // 4. Deploy ISM's (aggregate, hyperlane, wormhole & axelar)
     const aggregateIsmRes = await wasmClient.upload(
       deployer,
       fs.readFileSync('../artifacts/hpl_ism_aggregate-aarch64.wasm'),
@@ -220,6 +220,8 @@ describe('Test Wormhole ISM', () => {
     );
     hyperlaneAggregateIsmAddress = aggregateIsmInstantiateRes.contractAddress;
     expect(hyperlaneAggregateIsmAddress).toBeTruthy();
+
+    // TODO: deploy hyperlane's ISM
 
     // wormhole
     const hyperlaneWormholeIsmRes = await wasmClient.upload(
@@ -245,6 +247,7 @@ describe('Test Wormhole ISM', () => {
     hyperlaneWormholeIsmAddress =
       hyperlaneWormholeIsmInstantiateRes.contractAddress;
     expect(hyperlaneWormholeIsmAddress).toBeTruthy();
+    // TODO: instantiate axelar ISM
 
     // 5. Set deployed hooks and isms for Mailbox
     await wasmClient.execute(
