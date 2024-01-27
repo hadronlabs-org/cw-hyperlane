@@ -81,7 +81,7 @@ function makeHandler(
               msg_body: Buffer.from(msg_body, "utf-8").toString("hex"),
             },
           },
-          [{ denom: "token", amount: "26000000" }]
+          // [{ denom: "token", amount: "26000000" }]
         );
         console.log(parseWasmEventLog(res));
       };
