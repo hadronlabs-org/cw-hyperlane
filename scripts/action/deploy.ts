@@ -391,6 +391,7 @@ const deploy_hook = async (
         },
         "auto"
       );
+      return routing_hook_res.address!;
 
     case "wormhole":
       const wormhole_hook_res = await hooks.wormhole.instantiate({
