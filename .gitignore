@@ -28,3 +28,7 @@ Cargo.lock
 .idea/
 
 **/*.profraw
+
+#local context data
+scripts/context
+scripts/save.json
