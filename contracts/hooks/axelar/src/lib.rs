@@ -15,7 +15,6 @@ use hpl_interface::{
 use ethabi::{Address, encode, Token};
 use ethabi::ethereum_types::H160;
 use osmosis_std::types::ibc::applications::transfer::{v1::MsgTransfer};
-use hpl_interface::core::mailbox::QueryMsg::Mailbox;
 use hpl_ownable::get_owner;
 
 // version info for migration info
@@ -65,13 +64,11 @@ pub enum ContractError {
     #[error("invalid recipient address")]
     InvalidRecipientAddress {address: String},
 
-    #[error("last_dispatch query failed ")]
+    #[error("last_dispatch query failed")]
     LastDispatchQueryFailed {},
 
-    #[error("last_dispatch id mismatch ")]
-    // TODO: can probably get rid of this, just for debugging
+    #[error("last_dispatch id mismatch")]
     LastDispatchIDMismatch {got: HexBinary, expected: HexBinary},
-
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -107,7 +104,7 @@ pub fn instantiate(
             .add_attribute("destination_chain", destination_chain)
             .add_attribute("destination_contract", destination_contract)
             .add_attribute("destination_ism", destination_ism)
-            .add_attribute("destination_ism", axelar_gateway_channel)
+            .add_attribute("axelar_gateway_channel", axelar_gateway_channel)
     ))
 }
 
@@ -221,7 +218,7 @@ pub fn send_to_evm(
     let ibc_transfer = MsgTransfer {
         source_port: "transfer".to_string(),
         source_channel: gateway_channel,
-        token: None,
+        token: None, // TODO: is this gonna work?
         sender: env.contract.address.to_string(),
         receiver: AXELAR_GATEWAY.to_string(),
         timeout_height: None,
@@ -254,7 +251,7 @@ pub fn handle_query(
     _env: Env,
     _msg: AxelarQueryMsg,
 ) -> StdResult<QueryResponse> {
-    cosmwasm_std::to_binary(&AxelarInfoResponse {
+    cosmwasm_std::to_json_binary(&AxelarInfoResponse {
             destination_chain: DESTINATION_CHAIN.load(deps.storage)?,
             destination_contract: DESTINATION_CONTRACT.load(deps.storage)?,
             destination_ism: DESTINATION_ISM.load(deps.storage)?,
