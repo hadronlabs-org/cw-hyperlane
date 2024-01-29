@@ -15,6 +15,7 @@ use hpl_interface::{
 use ethabi::{Address, encode, Token};
 use ethabi::ethereum_types::H160;
 use osmosis_std::types::ibc::applications::transfer::{v1::MsgTransfer};
+use hpl_interface::core::mailbox::QueryMsg::Mailbox;
 use hpl_ownable::get_owner;
 
 // version info for migration info
@@ -107,8 +108,6 @@ pub fn instantiate(
             .add_attribute("destination_contract", destination_contract)
             .add_attribute("destination_ism", destination_ism)
             .add_attribute("destination_ism", axelar_gateway_channel)
-
-
     ))
 }
 
@@ -124,11 +123,11 @@ pub fn execute(
         // TODO: maybe add SetWomrholeCore Msg
         ExecuteMsg::Ownable(msg) => Ok(hpl_ownable::handle(deps, env, info, msg)?),
         ExecuteMsg::PostDispatch(msg) => post_dispatch(deps, env, info, msg),
-        ExecuteMsg::RegisterDestinationContract(msg) => register_desination_contract(deps, info, msg),
+        ExecuteMsg::RegisterDestinationContract(msg) => register_destination_contract(deps, info, msg),
     }
 }
 
-fn register_desination_contract(
+fn register_destination_contract(
     deps: DepsMut,
     info: MessageInfo,
     msg: RegisterDestinationContractMsg,
@@ -145,8 +144,6 @@ fn register_desination_contract(
     Ok(Response::new().add_event(
         new_event("register_destination_contract")
             .add_attribute("destination_contract", destination_contract)
-
-
     ))   
 }
 
@@ -156,14 +153,13 @@ fn post_dispatch(
     info: MessageInfo,
     req: PostDispatchMsg,
 ) -> Result<Response, ContractError> {
-  
     // Ensure message_id matches latest dispatch from mailbox
     let mailbox = MAILBOX.load(deps.storage)?;
     let latest_dispatch_resp = deps
         .querier
         .query_wasm_smart::<LatestDispatchedIdResponse>(
             &mailbox,
-            &MailboxQueryMsg::LatestDispatchId {},
+            &MailboxQueryMsg::LatestDispatchId {}.wrap(),
         ).or_else(|_| {
             return Err(ContractError::LastDispatchQueryFailed {})
         });
@@ -180,20 +176,19 @@ fn post_dispatch(
     );
 
     //send message to axelar gateway
-    let desination_chain = DESTINATION_CHAIN.load(deps.storage)?;
-    let desination_contract = DESTINATION_CONTRACT.load(deps.storage)?;
-    let desination_ism = DESTINATION_ISM.load(deps.storage)?;
+    let destination_chain = DESTINATION_CHAIN.load(deps.storage)?;
+    let destination_contract = DESTINATION_CONTRACT.load(deps.storage)?;
+    let destination_ism = DESTINATION_ISM.load(deps.storage)?;
     let axelar_gateway_channel = AXELAR_GATEWAY_CHANNEL.load(deps.storage)?;
 
     // TODO: do we need to pass a fee?
-    send_to_evm(deps, env, info, req.message, axelar_gateway_channel, desination_chain, desination_contract, vec![desination_ism], None,)
-
+    send_to_evm(deps, env, info, req.message, axelar_gateway_channel, destination_chain, destination_contract, vec![destination_ism], None,)
 }
 
 pub fn send_to_evm(
     _deps: DepsMut,
     env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     message: HexBinary,
     gateway_channel: String,
     destination_chain: String,
@@ -201,7 +196,6 @@ pub fn send_to_evm(
     destination_recipients: Vec<String>,
     fee: Option<AxelarFee>
 ) -> Result<Response, ContractError> {
-
     let addresses = destination_recipients
     .into_iter()
     .map(|s| {
@@ -218,6 +212,7 @@ pub fn send_to_evm(
         destination_chain,
         destination_address: destination_contract,
         payload,
+        // TODO: extract constant
         type_: 2,
         fee
     };
@@ -274,11 +269,12 @@ fn get_mailbox(_deps: Deps) -> Result<MailboxResponse, ContractError> {
 }
 
 fn quote_dispatch(deps: Deps, msg: QuoteDispatchMsg) -> Result<QuoteDispatchResponse, ContractError> {
-    let decoded_metadata: AxelarMetadata = msg.metadata.clone().into();
-    // TODO: add better check to make sure the right metadata is present
+    // TODO: first problem - you don't send the metadata with quote gas to decode
+    // let decoded_metadata: AxelarMetadata = msg.metadata.clone().into();
+    // // TODO: add better check to make sure the right metadata is present
     Ok(QuoteDispatchResponse {
         gas_amount: Some(coin(
-            decoded_metadata.gas_amount,
+            100_000, // TODO
             GAS_TOKEN.load(deps.storage)?,
         )),
     })
