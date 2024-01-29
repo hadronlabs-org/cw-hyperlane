@@ -295,10 +295,8 @@ const deploy_ism = async (
         const wormhole_ism_res = await isms.wormhole.instantiate({
           owner: ism.owner === "<signer>" ? client.signer : ism.owner,
           wormhole_core: ism.wormhole_core,
-          emitter_chain: ism.emitter_chain,
-          emitter_address: ism.emitter_address,
-          origin_domain: ism.origin_domain,
-          origin_sender: ism.origin_sender,
+          vaa_emitter_chain: ism.emitter_chain,
+          hyperlane_origin_domain: ism.origin_domain,
         });
   
         return wormhole_ism_res.address!;
