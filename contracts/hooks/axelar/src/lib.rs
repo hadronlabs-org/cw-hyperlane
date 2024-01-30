@@ -1,21 +1,27 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use serde_json_wasm::to_string;
-use cosmwasm_std::{Event, MessageInfo, ensure_eq, QueryResponse, Response, DepsMut, Deps, Env, StdResult, StdError, Addr, coin, HexBinary};
+use cosmwasm_std::{
+    coin, ensure_eq, Addr, Deps, DepsMut, Env, Event, HexBinary, MessageInfo, QueryResponse,
+    Response, StdError, StdResult,
+};
 use cw_storage_plus::Item;
+use ethabi::ethereum_types::H160;
+use ethabi::{encode, Address, Token};
 use hpl_interface::{
     core::mailbox::{LatestDispatchedIdResponse, MailboxQueryMsg},
     hook::{
-        axelar::{ExecuteMsg, InstantiateMsg, QueryMsg, AxelarInfoResponse, AxelarQueryMsg, AxelarFee, AxelarGeneralMessage, RegisterDestinationContractMsg},
-        HookQueryMsg, MailboxResponse, QuoteDispatchResponse, PostDispatchMsg, QuoteDispatchMsg,
+        axelar::{
+            AxelarFee, AxelarGeneralMessage, AxelarInfoResponse, AxelarQueryMsg, ExecuteMsg,
+            InstantiateMsg, QueryMsg, RegisterDestinationContractMsg,
+        },
+        HookQueryMsg, MailboxResponse, PostDispatchMsg, QuoteDispatchMsg, QuoteDispatchResponse,
     },
     to_binary,
-    types::{Message, AxelarMetadata}
+    types::{AxelarMetadata, Message},
 };
-use ethabi::{Address, encode, Token};
-use ethabi::ethereum_types::H160;
-use osmosis_std::types::ibc::applications::transfer::{v1::MsgTransfer};
 use hpl_ownable::get_owner;
+use osmosis_std::types::ibc::applications::transfer::v1::MsgTransfer;
+use serde_json_wasm::to_string;
 
 // version info for migration info
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -42,7 +48,6 @@ pub const MAILBOX: Item<Addr> = Item::new(MAILBOX_KEY);
 pub const GAS_TOKEN_KEY: &str = "gas_token";
 pub const GAS_TOKEN: Item<String> = Item::new(GAS_TOKEN_KEY);
 
-
 fn new_event(name: &str) -> Event {
     Event::new(format!("hpl_hook_axelar::{}", name))
 }
@@ -62,13 +67,13 @@ pub enum ContractError {
     Paused {},
 
     #[error("invalid recipient address")]
-    InvalidRecipientAddress {address: String},
+    InvalidRecipientAddress { address: String },
 
     #[error("last_dispatch query failed")]
     LastDispatchQueryFailed {},
 
     #[error("last_dispatch id mismatch")]
-    LastDispatchIDMismatch {got: HexBinary, expected: HexBinary},
+    LastDispatchIDMismatch { got: HexBinary, expected: HexBinary },
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -82,14 +87,14 @@ pub fn instantiate(
 
     let owner = deps.api.addr_validate(&msg.owner)?;
     hpl_ownable::initialize(deps.storage, &owner)?;
-    
+
     let destination_chain = &msg.destination_chain;
     let destination_contract = &msg.destination_contract;
     let destination_ism = &msg.destination_ism;
     let axelar_gateway_channel = &msg.axelar_gateway_channel;
     let gas_token = &msg.gas_token;
     let mailbox: Addr = deps.api.addr_validate(&msg.mailbox)?;
-        
+
     DESTINATION_CHAIN.save(deps.storage, destination_chain)?;
     DESTINATION_CONTRACT.save(deps.storage, destination_contract)?;
     DESTINATION_ISM.save(deps.storage, destination_ism)?;
@@ -104,10 +109,9 @@ pub fn instantiate(
             .add_attribute("destination_chain", destination_chain)
             .add_attribute("destination_contract", destination_contract)
             .add_attribute("destination_ism", destination_ism)
-            .add_attribute("axelar_gateway_channel", axelar_gateway_channel)
+            .add_attribute("axelar_gateway_channel", axelar_gateway_channel),
     ))
 }
-
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
@@ -117,10 +121,12 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        // TODO: maybe add SetWomrholeCore Msg
+        // TODO: maybe add SetWormholeCore Msg
         ExecuteMsg::Ownable(msg) => Ok(hpl_ownable::handle(deps, env, info, msg)?),
         ExecuteMsg::PostDispatch(msg) => post_dispatch(deps, env, info, msg),
-        ExecuteMsg::RegisterDestinationContract(msg) => register_destination_contract(deps, info, msg),
+        ExecuteMsg::RegisterDestinationContract(msg) => {
+            register_destination_contract(deps, info, msg)
+        }
     }
 }
 
@@ -140,8 +146,8 @@ fn register_destination_contract(
 
     Ok(Response::new().add_event(
         new_event("register_destination_contract")
-            .add_attribute("destination_contract", destination_contract)
-    ))   
+            .add_attribute("destination_contract", destination_contract),
+    ))
 }
 
 fn post_dispatch(
@@ -157,19 +163,20 @@ fn post_dispatch(
         .query_wasm_smart::<LatestDispatchedIdResponse>(
             &mailbox,
             &MailboxQueryMsg::LatestDispatchId {}.wrap(),
-        ).or_else(|_| {
-            return Err(ContractError::LastDispatchQueryFailed {})
-        });
+        )
+        .or_else(|_| return Err(ContractError::LastDispatchQueryFailed {}));
 
-    let latest_dispatch_id = latest_dispatch_resp.unwrap()
-        .message_id;
+    let latest_dispatch_id = latest_dispatch_resp.unwrap().message_id;
 
     let decoded_msg: Message = req.message.clone().into();
 
     ensure_eq!(
         latest_dispatch_id,
         decoded_msg.id(),
-        ContractError::LastDispatchIDMismatch {got: decoded_msg.id(), expected: latest_dispatch_id }
+        ContractError::LastDispatchIDMismatch {
+            got: decoded_msg.id(),
+            expected: latest_dispatch_id
+        }
     );
 
     //send message to axelar gateway
@@ -179,7 +186,17 @@ fn post_dispatch(
     let axelar_gateway_channel = AXELAR_GATEWAY_CHANNEL.load(deps.storage)?;
 
     // TODO: do we need to pass a fee?
-    send_to_evm(deps, env, info, req.message, axelar_gateway_channel, destination_chain, destination_contract, vec![destination_ism], None,)
+    send_to_evm(
+        deps,
+        env,
+        info,
+        req.message,
+        axelar_gateway_channel,
+        destination_chain,
+        destination_contract,
+        vec![destination_ism],
+        None,
+    )
 }
 
 pub fn send_to_evm(
@@ -191,17 +208,15 @@ pub fn send_to_evm(
     destination_chain: String,
     destination_contract: String,
     destination_recipients: Vec<String>,
-    fee: Option<AxelarFee>
+    fee: Option<AxelarFee>,
 ) -> Result<Response, ContractError> {
     let addresses = destination_recipients
-    .into_iter()
-    .map(|s| {
-        match s.parse::<H160>() {
+        .into_iter()
+        .map(|s| match s.parse::<H160>() {
             Ok(address) => Ok(Token::Address(Address::from(address))),
             Err(_) => Err(ContractError::InvalidRecipientAddress { address: s }),
-        }
-    })
-    .collect::<Result<Vec<Token>, ContractError>>()?;
+        })
+        .collect::<Result<Vec<Token>, ContractError>>()?;
 
     let payload = encode(&[Token::Array(addresses), Token::String(message.to_hex())]);
 
@@ -211,7 +226,7 @@ pub fn send_to_evm(
         payload,
         // TODO: extract constant
         type_: 2,
-        fee
+        fee,
     };
 
     // let coin = cw_utils::one_coin(&info).unwrap();
@@ -246,17 +261,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<QueryResponse, Contr
     }
 }
 
-pub fn handle_query(
-    deps: Deps,
-    _env: Env,
-    _msg: AxelarQueryMsg,
-) -> StdResult<QueryResponse> {
+pub fn handle_query(deps: Deps, _env: Env, _msg: AxelarQueryMsg) -> StdResult<QueryResponse> {
     cosmwasm_std::to_json_binary(&AxelarInfoResponse {
-            destination_chain: DESTINATION_CHAIN.load(deps.storage)?,
-            destination_contract: DESTINATION_CONTRACT.load(deps.storage)?,
-            destination_ism: DESTINATION_ISM.load(deps.storage)?,
-            axelar_gateway_channel: AXELAR_GATEWAY_CHANNEL.load(deps.storage)?,
-        })
+        destination_chain: DESTINATION_CHAIN.load(deps.storage)?,
+        destination_contract: DESTINATION_CONTRACT.load(deps.storage)?,
+        destination_ism: DESTINATION_ISM.load(deps.storage)?,
+        axelar_gateway_channel: AXELAR_GATEWAY_CHANNEL.load(deps.storage)?,
+    })
 }
 
 fn get_mailbox(_deps: Deps) -> Result<MailboxResponse, ContractError> {
@@ -265,13 +276,16 @@ fn get_mailbox(_deps: Deps) -> Result<MailboxResponse, ContractError> {
     })
 }
 
-fn quote_dispatch(deps: Deps, msg: QuoteDispatchMsg) -> Result<QuoteDispatchResponse, ContractError> {
-    // TODO: first problem - you don't send the metadata with quote gas to decode
-    // let decoded_metadata: AxelarMetadata = msg.metadata.clone().into();
-    // // TODO: add better check to make sure the right metadata is present
+fn quote_dispatch(
+    deps: Deps,
+    msg: QuoteDispatchMsg,
+) -> Result<QuoteDispatchResponse, ContractError> {
+    // We expect user to pass expected amount of fee through metadata in `dispatch` function
+    // It still can be not enough, and in that case axelar has other entrypoint to add fee funds manually
+    let decoded_metadata: AxelarMetadata = msg.metadata.clone().into(); // TODO: error handling
     Ok(QuoteDispatchResponse {
         gas_amount: Some(coin(
-            100_000, // TODO
+            decoded_metadata.gas_amount,
             GAS_TOKEN.load(deps.storage)?,
         )),
     })

@@ -1,15 +1,15 @@
 pub mod aggregate;
+pub mod axelar;
 pub mod merkle;
 pub mod pausable;
 pub mod routing;
 pub mod routing_custom;
 pub mod routing_fallback;
 pub mod wormhole;
-pub mod axelar;
 
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{
-    wasm_execute, Coin, CustomQuery, HexBinary, QuerierWrapper, StdResult, WasmMsg, Uint128,
+    wasm_execute, Coin, CustomQuery, HexBinary, QuerierWrapper, StdResult, Uint128, WasmMsg,
 };
 
 #[cw_serde]

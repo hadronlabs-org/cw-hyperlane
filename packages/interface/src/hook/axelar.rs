@@ -1,6 +1,6 @@
+use crate::ownable::{OwnableMsg, OwnableQueryMsg};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use serde::{Deserialize, Serialize};
-use crate::ownable::{OwnableMsg, OwnableQueryMsg};
 
 use super::{HookQueryMsg, PostDispatchMsg};
 
@@ -24,7 +24,7 @@ pub struct RegisterDestinationContractMsg {
 pub enum ExecuteMsg {
     Ownable(OwnableMsg),
     PostDispatch(PostDispatchMsg),
-    RegisterDestinationContract(RegisterDestinationContractMsg)
+    RegisterDestinationContract(RegisterDestinationContractMsg),
 }
 
 #[cw_serde]
@@ -51,19 +51,12 @@ pub struct AxelarInfoResponse {
     pub axelar_gateway_channel: String,
 }
 
-
 #[derive(
-Clone,
-Debug,
-PartialEq,
-Eq,
-serde::Serialize,
-serde::Deserialize,
-schemars::JsonSchema,
+    Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
 pub struct AxelarFee {
     amount: String,
-    recipient: String
+    recipient: String,
 }
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct AxelarGeneralMessage {
@@ -72,12 +65,8 @@ pub struct AxelarGeneralMessage {
     pub payload: Vec<u8>,
     #[serde(rename = "type")]
     pub type_: i64,
-    pub fee: Option<AxelarFee>
+    pub fee: Option<AxelarFee>,
 }
-
-
-
-
 
 #[cfg(test)]
 mod test {

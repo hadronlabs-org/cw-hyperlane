@@ -1,25 +1,23 @@
-use std::{ops::Deref, env};
+use std::{env, ops::Deref};
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    wasm_execute, ensure_eq, Event, MessageInfo, QueryResponse, Response, DepsMut, Deps, Addr,
-    StdError, Env, Binary, StdResult,
+    ensure_eq, wasm_execute, Addr, Binary, Deps, DepsMut, Env, Event, MessageInfo, QueryResponse,
+    Response, StdError, StdResult,
 };
 use cw_storage_plus::Item;
 use hpl_interface::{
     core::mailbox::{LatestDispatchedIdResponse, MailboxQueryMsg},
     hook::{
         wormhole::{ExecuteMsg, InstantiateMsg, QueryMsg, WormholeInfoResponse, WormholeQueryMsg},
-        HookQueryMsg, MailboxResponse, QuoteDispatchResponse, PostDispatchMsg,
+        HookQueryMsg, MailboxResponse, PostDispatchMsg, QuoteDispatchResponse,
     },
     to_binary,
     types::Message,
 };
 mod wormhole;
 use wormhole::WormholeExecuteMsg;
-
-
 
 // version info for migration info
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -48,7 +46,6 @@ pub enum ContractError {
 
     #[error("hook paused")]
     Paused {},
-
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -73,11 +70,9 @@ pub fn instantiate(
         new_event("initialize")
             .add_attribute("sender", info.sender)
             .add_attribute("owner", owner)
-            .add_attribute("wormhole_core", wormhole_core)
-
+            .add_attribute("wormhole_core", wormhole_core),
     ))
 }
-
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
@@ -87,9 +82,9 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        // TODO: maybe add SetWomrholeCore Msg
+        // TODO: maybe add SetWormholeCore Msg
         ExecuteMsg::Ownable(msg) => Ok(hpl_ownable::handle(deps, env, info, msg)?),
-        ExecuteMsg::PostDispatch(msg) => post_dispatch(deps, info, msg)
+        ExecuteMsg::PostDispatch(msg) => post_dispatch(deps, info, msg),
     }
 }
 
@@ -98,7 +93,6 @@ fn post_dispatch(
     _info: MessageInfo,
     req: PostDispatchMsg,
 ) -> Result<Response, ContractError> {
-    
     // Ensure message_id matches latest dispatch from mailbox
     let mailbox = MAILBOX.load(deps.storage)?;
     let latest_dispatch_id = deps
@@ -120,14 +114,16 @@ fn post_dispatch(
     // send message to wormhole core-bridging-contract
     let wormhole_core = WORMHOLE_CORE.load(deps.storage)?;
     let decoded_msg: Message = req.message.clone().into();
-    let binary_message = Binary::from(req.message);
-    let wormhole_message: WormholeExecuteMsg = WormholeExecuteMsg::PostMessage {nonce: decoded_msg.nonce, message: binary_message};
+    let binary_message = Binary::from(req.message); // why req.message?
+    let wormhole_message: WormholeExecuteMsg = WormholeExecuteMsg::PostMessage {
+        nonce: decoded_msg.nonce,
+        message: binary_message,
+    };
 
     let wormhole_msg = wasm_execute(&wormhole_core, &wormhole_message, vec![])?;
 
     Ok(Response::new().add_message(wormhole_msg).add_event(
-        new_event("post_dispatch")
-            .add_attribute("message_id", decoded_msg.id().to_hex()),
+        new_event("post_dispatch").add_attribute("message_id", decoded_msg.id().to_hex()),
     ))
 }
 
@@ -143,14 +139,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<QueryResponse, Contr
     }
 }
 
-pub fn handle_query(
-    deps: Deps,
-    _env: Env,
-    msg: WormholeQueryMsg,
-) -> StdResult<QueryResponse> {
-    cosmwasm_std::to_binary(&WormholeInfoResponse {
-            wormhole_core: WORMHOLE_CORE.load(deps.storage)?.into_string(),
-        })
+pub fn handle_query(deps: Deps, _env: Env, _msg: WormholeQueryMsg) -> StdResult<QueryResponse> {
+    cosmwasm_std::to_json_binary(&WormholeInfoResponse {
+        wormhole_core: WORMHOLE_CORE.load(deps.storage)?.into_string(),
+    })
 }
 
 fn get_mailbox(_deps: Deps) -> Result<MailboxResponse, ContractError> {
@@ -160,5 +152,6 @@ fn get_mailbox(_deps: Deps) -> Result<MailboxResponse, ContractError> {
 }
 
 fn quote_dispatch() -> Result<QuoteDispatchResponse, ContractError> {
+    // We do not take fees for wormhole hook usage, and maintain IBC relayer ourselves
     Ok(QuoteDispatchResponse { gas_amount: None })
 }

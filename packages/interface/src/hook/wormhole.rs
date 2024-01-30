@@ -38,8 +38,6 @@ pub struct WormholeInfoResponse {
     pub wormhole_core: String,
 }
 
-
-
 #[cfg(test)]
 mod test {
     use cosmwasm_std::HexBinary;
