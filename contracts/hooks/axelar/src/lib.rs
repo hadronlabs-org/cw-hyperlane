@@ -2,16 +2,15 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, ensure_eq, Addr, Deps, DepsMut, Env, Event, HexBinary, MessageInfo, QueryResponse,
-    Response, StdError, StdResult,
+    Response, StdError, StdResult, Uint128,
 };
 use cw_storage_plus::Item;
-use ethabi::ethereum_types::H160;
-use ethabi::{encode, Address, Token};
+use ethabi::{encode, Token};
 use hpl_interface::{
     core::mailbox::{LatestDispatchedIdResponse, MailboxQueryMsg},
     hook::{
         axelar::{
-            AxelarFee, AxelarGeneralMessage, AxelarInfoResponse, AxelarQueryMsg, ExecuteMsg,
+            AxelarGeneralMessage, AxelarInfoResponse, AxelarQueryMsg, ExecuteMsg,
             InstantiateMsg, QueryMsg, RegisterDestinationContractMsg,
         },
         HookQueryMsg, MailboxResponse, PostDispatchMsg, QuoteDispatchMsg, QuoteDispatchResponse,
@@ -19,13 +18,20 @@ use hpl_interface::{
     to_binary,
     types::{AxelarMetadata, Message},
 };
+use neutron_sdk::{
+    bindings::{
+        msg::{IbcFee, NeutronMsg},
+        query::NeutronQuery,
+    }, query::min_ibc_fee::query_min_ibc_fee, sudo::msg::RequestPacketTimeoutHeight
+};
 use hpl_ownable::get_owner;
-use osmosis_std::types::ibc::applications::transfer::v1::MsgTransfer;
 use serde_json_wasm::to_string;
 
 // version info for migration info
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+const FEE_DENOM: &str = "untrn";
 
 const AXELAR_GATEWAY: &str = "axelar1dv4u5k73pzqrxlzujxg3qp8kvc3pje7jtdvu72npnt5zhq05ejcsn5qme5";
 
@@ -69,8 +75,8 @@ pub enum ContractError {
     #[error("invalid recipient address")]
     InvalidRecipientAddress { address: String },
 
-    #[error("last_dispatch query failed")]
-    LastDispatchQueryFailed {},
+    #[error("last_dispatch query failed ")]
+    LastDispatchQueryFailed {err: String},
 
     #[error("last_dispatch id mismatch")]
     LastDispatchIDMismatch { got: HexBinary, expected: HexBinary },
@@ -115,14 +121,17 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut,
+    deps: DepsMut<NeutronQuery>,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response<NeutronMsg>, ContractError> {
     match msg {
         // TODO: maybe add SetWormholeCore Msg
-        ExecuteMsg::Ownable(msg) => Ok(hpl_ownable::handle(deps, env, info, msg)?),
+        ExecuteMsg::Ownable(msg) => match hpl_ownable::handle(deps, env, info, msg) {
+            Ok(s) => Ok(Response::new().add_events(s.events)),
+            Err(e) => Err(e.into()),
+        }
         ExecuteMsg::PostDispatch(msg) => post_dispatch(deps, env, info, msg),
         ExecuteMsg::RegisterDestinationContract(msg) => {
             register_destination_contract(deps, info, msg)
@@ -131,10 +140,10 @@ pub fn execute(
 }
 
 fn register_destination_contract(
-    deps: DepsMut,
+    deps: DepsMut<NeutronQuery>,
     info: MessageInfo,
     msg: RegisterDestinationContractMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response<NeutronMsg>, ContractError> {
     ensure_eq!(
         get_owner(deps.storage)?,
         info.sender,
@@ -151,11 +160,12 @@ fn register_destination_contract(
 }
 
 fn post_dispatch(
-    deps: DepsMut,
+    deps: DepsMut<NeutronQuery>,
     env: Env,
     info: MessageInfo,
     req: PostDispatchMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response<NeutronMsg>, ContractError> {
+  
     // Ensure message_id matches latest dispatch from mailbox
     let mailbox = MAILBOX.load(deps.storage)?;
     let latest_dispatch_resp = deps
@@ -163,8 +173,9 @@ fn post_dispatch(
         .query_wasm_smart::<LatestDispatchedIdResponse>(
             &mailbox,
             &MailboxQueryMsg::LatestDispatchId {}.wrap(),
-        )
-        .or_else(|_| return Err(ContractError::LastDispatchQueryFailed {}));
+        ).or_else(|err| {
+            return Err(ContractError::LastDispatchQueryFailed {err: err.to_string()})
+        });
 
     let latest_dispatch_id = latest_dispatch_resp.unwrap().message_id;
 
@@ -187,106 +198,230 @@ fn post_dispatch(
 
     // TODO: do we need to pass a fee?
     send_to_evm(
-        deps,
-        env,
-        info,
-        req.message,
+        deps, 
+        env, 
+        info, 
+        req,
         axelar_gateway_channel,
         destination_chain,
         destination_contract,
         vec![destination_ism],
-        None,
     )
+
 }
 
 pub fn send_to_evm(
-    _deps: DepsMut,
+    deps: DepsMut<NeutronQuery>,
     env: Env,
-    _info: MessageInfo,
-    message: HexBinary,
+    info: MessageInfo,
+    req: PostDispatchMsg,
     gateway_channel: String,
     destination_chain: String,
     destination_contract: String,
-    destination_recipients: Vec<String>,
-    fee: Option<AxelarFee>,
-) -> Result<Response, ContractError> {
-    let addresses = destination_recipients
-        .into_iter()
-        .map(|s| match s.parse::<H160>() {
-            Ok(address) => Ok(Token::Address(Address::from(address))),
-            Err(_) => Err(ContractError::InvalidRecipientAddress { address: s }),
-        })
-        .collect::<Result<Vec<Token>, ContractError>>()?;
+    _destination_recipients: Vec<String>,
+) -> Result<Response<NeutronMsg>, ContractError> {
 
-    let payload = encode(&[Token::Array(addresses), Token::String(message.to_hex())]);
+    // let addresses = destination_recipients
+    // .into_iter()
+    // .map(|s| {
+    //     match s.parse::<H160>() {
+    //         Ok(address) => Ok(Token::Address(Address::from(address))),
+    //         Err(_) => Err(ContractError::InvalidRecipientAddress { address: s }),
+    //     }
+    // })
+    // .collect::<Result<Vec<Token>, ContractError>>()?;
+
+    let message_nonce = Message::from(req.message).nonce;
+    let message_payload = encode(&vec![
+        Token::String(info.sender.to_string()),
+        Token::Int(message_nonce.into())
+    ]);
+
+    let mut destination_address: String  = "0x".to_string();
+    destination_address.push_str(&destination_contract);
 
     let msg = AxelarGeneralMessage {
         destination_chain,
-        destination_address: destination_contract,
-        payload,
-        // TODO: extract constant
-        type_: 2,
-        fee,
+        destination_address,
+        payload: message_payload.to_vec(),
+        type_: 1,
+        // TODO: confirm there is no GMP fee
+        fee: None,
     };
 
-    // let coin = cw_utils::one_coin(&info).unwrap();
-    let ibc_transfer = MsgTransfer {
+    let decoded_metadata: AxelarMetadata = req.metadata.clone().into();
+    let axelar_fee_amt = decoded_metadata.gas_amount;
+    let axelar_fee_coin = coin(axelar_fee_amt, GAS_TOKEN.load(deps.storage)?);
+    
+    let ibc_fee = min_ntrn_ibc_fee(query_min_ibc_fee(deps.as_ref()).unwrap().min_fee);
+
+    let ibc_transfer = NeutronMsg::IbcTransfer {
         source_port: "transfer".to_string(),
         source_channel: gateway_channel,
-        token: None, // TODO: is this gonna work?
+        token: axelar_fee_coin,
         sender: env.contract.address.to_string(),
         receiver: AXELAR_GATEWAY.to_string(),
-        timeout_height: None,
+        timeout_height: RequestPacketTimeoutHeight {
+            revision_number: None,
+            revision_height: None,
+        },
         timeout_timestamp: env.block.time.plus_seconds(604_800u64).nanos(),
         memo: to_string(&msg).unwrap(),
-    };
+        fee: ibc_fee,
+    } ;
 
     // Base response
-    let response = Response::new()
+    let response = Response::default()
         .add_attribute("status", "ibc_message_created")
         .add_attribute("ibc_message", format!("{:?}", ibc_transfer));
-
-    return Ok(response.add_message(ibc_transfer));
+    let r =  response.add_message(ibc_transfer);
+    return Ok(r);
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<QueryResponse, ContractError> {
+pub fn query(deps: Deps<NeutronQuery>, env: Env, msg: QueryMsg) -> Result<QueryResponse, ContractError> {
+    deps.api.debug("inside top query");
     match msg {
         QueryMsg::Axelar(msg) => Ok(handle_query(deps, env, msg)?),
         QueryMsg::Ownable(msg) => Ok(hpl_ownable::handle_query(deps, env, msg)?),
         QueryMsg::Hook(msg) => match msg {
-            HookQueryMsg::Mailbox {} => to_binary(get_mailbox(deps)),
+            HookQueryMsg::Mailbox {} => to_binary(get_mailbox()),
             HookQueryMsg::QuoteDispatch(msg) => to_binary(quote_dispatch(deps, msg)),
         },
     }
 }
 
-pub fn handle_query(deps: Deps, _env: Env, _msg: AxelarQueryMsg) -> StdResult<QueryResponse> {
-    cosmwasm_std::to_json_binary(&AxelarInfoResponse {
-        destination_chain: DESTINATION_CHAIN.load(deps.storage)?,
-        destination_contract: DESTINATION_CONTRACT.load(deps.storage)?,
-        destination_ism: DESTINATION_ISM.load(deps.storage)?,
-        axelar_gateway_channel: AXELAR_GATEWAY_CHANNEL.load(deps.storage)?,
-    })
+pub fn handle_query(
+    deps: Deps<NeutronQuery>,
+    _env: Env,
+    _msg: AxelarQueryMsg,
+) -> StdResult<QueryResponse> {
+    cosmwasm_std::to_binary(&AxelarInfoResponse {
+            destination_chain: DESTINATION_CHAIN.load(deps.storage)?,
+            destination_contract: DESTINATION_CONTRACT.load(deps.storage)?,
+            destination_ism: DESTINATION_ISM.load(deps.storage)?,
+            axelar_gateway_channel: AXELAR_GATEWAY_CHANNEL.load(deps.storage)?,
+        })
 }
 
-fn get_mailbox(_deps: Deps) -> Result<MailboxResponse, ContractError> {
+fn get_mailbox() -> Result<MailboxResponse, ContractError> {
     Ok(MailboxResponse {
         mailbox: "unrestricted".to_string(),
     })
 }
 
-fn quote_dispatch(
-    deps: Deps,
-    msg: QuoteDispatchMsg,
-) -> Result<QuoteDispatchResponse, ContractError> {
-    // We expect user to pass expected amount of fee through metadata in `dispatch` function
-    // It still can be not enough, and in that case axelar has other entrypoint to add fee funds manually
-    let decoded_metadata: AxelarMetadata = msg.metadata.clone().into(); // TODO: error handling
+fn quote_dispatch(deps: Deps<NeutronQuery>, msg: QuoteDispatchMsg) -> Result<QuoteDispatchResponse, ContractError> {
+    // TODO: gaurd against casting and overflow issues
+    let decoded_metadata: AxelarMetadata = msg.metadata.clone().into();
+    let axelar_fee: Uint128 = decoded_metadata.gas_amount.into();
+    let ibc_fees = min_ntrn_ibc_fee(query_min_ibc_fee(deps).unwrap().min_fee);
+    let fee_total = axelar_fee + ibc_fees.ack_fee[0].amount +ibc_fees.timeout_fee[0].amount;
+
+    // TODO: add better check to make sure the right metadata is present
     Ok(QuoteDispatchResponse {
         gas_amount: Some(coin(
-            decoded_metadata.gas_amount,
+            fee_total.into(),
             GAS_TOKEN.load(deps.storage)?,
         )),
     })
+}
+
+fn min_ntrn_ibc_fee(fee: IbcFee) -> IbcFee {
+    IbcFee {
+        recv_fee: fee.recv_fee,
+        ack_fee: fee
+            .ack_fee
+            .into_iter()
+            .filter(|a| a.denom == FEE_DENOM)
+            .collect(),
+        timeout_fee: fee
+            .timeout_fee
+            .into_iter()
+            .filter(|a| a.denom == FEE_DENOM)
+            .collect(),
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use cosmwasm_std::{
+        from_binary,
+        testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
+        HexBinary, OwnedDeps, WasmQuery,
+    };
+
+    use hpl_interface::{
+        build_test_executor, build_test_querier, core::mailbox, hook::QuoteDispatchMsg,
+    };
+    use hpl_ownable::get_owner;
+    use ibcx_test_utils::hex;
+    use rstest::{fixture, rstest};
+
+    use crate::{execute, instantiate};
+
+    type TestDeps = OwnedDeps<MockStorage, MockApi, MockQuerier>;
+
+    build_test_executor!(self::execute);
+    build_test_querier!(self::query);
+
+    #[fixture]
+    fn deps(
+        #[default(Addr::unchecked("deployer"))] sender: Addr,
+        #[default(Addr::unchecked("owner"))] owner: Addr,
+        #[default(Addr::unchecked("mailbox"))] mailbox: Addr,
+    ) -> TestDeps {
+        let mut deps = mock_dependencies();
+
+        instantiate(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(sender.as_str(), &[]),
+            InstantiateMsg {
+                owner: owner.to_string(),
+                mailbox: mailbox.to_string(),
+                destination_chain: "test-chain".to_string(),
+                destination_contract: "test_contract".to_string(),
+                gas_token: "untrn".to_string(),
+                axelar_gateway_channel: "channel-1".to_string(),
+                destination_ism: "4D147dCb984e6affEEC47e44293DA442580A3Ec0".to_string()
+            },
+        )
+        .unwrap();
+
+        deps
+    }
+    
+// #[rstest]
+// fn test_post_dispatch(){
+//     let message = Message{
+//         version: 1,
+//         sender: HexBinary::from_hex("6E657574726F6E317877747A397733706664336E68373765326C76656C7A7A3064773768783372786E6D7A746573").unwrap(),
+//         nonce: 2,
+//         origin_domain: 10,
+//         recipient: HexBinary::from_hex("6E657574726F6E317877747A397733706664336E68373765326C76656C7A7A3064773768783372786E6D7A746573").unwrap(),
+//         body: HexBinary::from_hex("686920776F726C64").unwrap(),
+//         dest_domain: 20,
+//     };
+
+//     let pd_message = PostDispatchMsg{
+//         metadata: HexBinary::default(),
+//         message: message.into(),
+//     };
+//     dispatch_resp = post_dispatch(deps.as_mut(), env, info, req)
+// }
+
+    #[rstest]
+    fn test_quote_dispatch() {
+        let metadata: HexBinary = AxelarMetadata{gas_amount: 200}.into();
+        print!("{}", metadata.to_hex());
+        let quote_dispatch_msg = QuoteDispatchMsg{
+            metadata,
+            message: HexBinary::from_hex("68656C6C6F").unwrap(),
+        };
+        let decoded_metadata: AxelarMetadata = quote_dispatch_msg.metadata.clone().into();
+        assert_eq!(decoded_metadata.gas_amount, 200)
+
+    }
 }
