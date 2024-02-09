@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, HexBinary};
 use cw_storage_plus::{Item, Map};
 
 #[cw_serde]
@@ -20,7 +20,7 @@ pub struct Config {
 
 /// **VERIFIED_IDS** contains all the `message.id`s (hash) that were verified by core wormhole contract.
 /// Map key is the message id.
-pub const VERIFIED_IDS: Map<Vec<u8>, ()> = Map::new("verified-ids");
+pub const VERIFIED_IDS: Map<String, ()> = Map::new("verified-ids");
 
 /// **CONFIG** contains contract's configuration
 pub const CONFIG: Item<Config> = Item::new("config");
