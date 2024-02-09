@@ -1,0 +1,11 @@
+pion1:
+  name: pion1
+  chainId: pion-1
+  protocol: cosmos
+  gasPrice: 0.025
+  rpcUrls:
+    - https: https://rpc-falcron.pion-1.ntrn.tech:443
+  nativeToken: 
+    name: ntrn,
+    symbol: untrn,
+    decimals: 18

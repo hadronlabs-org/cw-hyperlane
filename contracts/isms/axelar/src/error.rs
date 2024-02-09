@@ -7,14 +7,14 @@ pub enum ContractError {
     Std(#[from] StdError),
 
     #[error("unauthorized")]
-    Unauthorized,
+    Unauthorized {expected: String},
 
     #[error("origin address not set")]
     OriginAddressNotSet,
 
     #[error("invalid origin address")]
-    InvalidOriginAddress,
+    InvalidOriginAddress {expected: String},
 
     #[error("invalid origin chain")]
-    InvalidOriginChain,
+    InvalidOriginChain {expected: String},
 }
