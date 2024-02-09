@@ -10,6 +10,8 @@ use hpl_interface::ism::IsmQueryMsg::{ModuleType, Verify, VerifyInfo};
 use hpl_interface::ism::{IsmType, ModuleTypeResponse, VerifyInfoResponse, VerifyResponse};
 use hpl_interface::to_binary;
 use hpl_interface::types::Message;
+use hpl_ownable::get_owner;
+
 
 #[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
 pub fn instantiate(
@@ -46,13 +48,14 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Ownable(msg) => Ok(hpl_ownable::handle(deps, env, info, msg)?),
-        ExecuteMsg::SetOriginAddress { address } => handle_set_origin_address(deps, info, address),
+        ExecuteMsg::SetOriginAddress { origin_address } => handle_set_origin_address(deps, info, origin_address),
         // metadata is actually VAA data in order for it to work
         ExecuteMsg::SubmitMeta {
             origin_address,
             origin_chain,
             id,
         } => handle_submit_meta(deps, info, origin_address, origin_chain, id),
+        ExecuteMsg::SetOriginAddress { origin_address } => set_origin_address(deps, info, origin_address)
     }
 }
 
@@ -64,7 +67,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<QueryResponse, Contr
         QueryMsg::Ism(msg) => match msg {
             ModuleType {} => to_binary({
                 Ok::<_, ContractError>(ModuleTypeResponse {
-                    typ: IsmType::Wormhole,
+                    typ: IsmType::Axelar,
                 })
             }),
             Verify { metadata, message } => to_binary(verify(deps, metadata, message)),
@@ -76,35 +79,40 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<QueryResponse, Contr
 fn handle_set_origin_address(
     deps: DepsMut,
     info: MessageInfo,
-    address: String,
+    origin_address: String,
 ) -> Result<Response, ContractError> {
     ensure_eq!(
-        hpl_ownable::get_owner(deps.storage)?,
+        get_owner(deps.storage)?,
         info.sender,
-        ContractError::Unauthorized
+        ContractError::Unauthorized { expected: "owner".to_string() }
     );
-
+    
     let mut config = CONFIG.load(deps.storage)?;
-    config.origin_address = Some(address);
+    config.origin_address = origin_address.clone();
     CONFIG.save(deps.storage, &config)?;
+    Ok(Response::new().add_event(
+        new_event("set_origin_address")
+            .add_attribute("orgin_address", origin_address)
 
-    Ok(Response::new())
+
+    ))   
 }
-
+// TODO
 fn handle_submit_meta(
     deps: DepsMut,
-    info: MessageInfo,
-    origin_address: String,
-    origin_chain: String,
-    id: HexBinary,
+    _info: MessageInfo,
+    origin_address: String, // TODO: naming
+    origin_chain: String,   // TODO: naming
+    id: Vec<u8>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-
-    ensure_eq!(
-        config.axelar_hook_sender,
-        info.sender,
-        ContractError::Unauthorized
-    );
+    let id_hex_binary = HexBinary::from(id);
+    // TODO: confirm we don't need this
+    // ensure_eq!(
+    //     config.axelar_hook_sender,
+    //     info.sender.to_string(),
+    //     ContractError::Unauthorized {expected: info.sender.to_string()}
+    // );
 
     let config_origin_address = config
         .origin_address
@@ -112,18 +120,16 @@ fn handle_submit_meta(
     ensure_eq!(
         config_origin_address,
         origin_address,
-        ContractError::InvalidOriginAddress
+        ContractError::InvalidOriginAddress {expected: origin_address}
     );
 
     ensure_eq!(
         config.origin_chain,
         origin_chain,
-        ContractError::InvalidOriginChain
+        ContractError::InvalidOriginChain {expected: origin_chain}
     );
 
-    // TODO: verify recipient?
-
-    VERIFIED_IDS.save(deps.storage, id.to_vec(), &())?;
+    VERIFIED_IDS.save(deps.storage, id_hex_binary.to_string(), &())?;
 
     Ok(Response::default().add_event(new_event("")))
 }
@@ -134,7 +140,7 @@ fn verify(
     message: HexBinary,
 ) -> Result<VerifyResponse, ContractError> {
     let message: Message = message.into();
-    let verified = VERIFIED_IDS.has(deps.storage, message.id().into());
+    let verified = VERIFIED_IDS.has(deps.storage, message.id().to_string());
     Ok(VerifyResponse { verified })
 }
 
