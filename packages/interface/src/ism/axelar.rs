@@ -40,7 +40,11 @@ pub enum ExecuteMsg {
         origin_chain: String,
         id: HexBinary,
     },
+    SetOriginAddress {
+        origin_address: String,
+    }
 }
+
 
 #[cw_serde]
 #[derive(QueryResponses)]

@@ -31,10 +31,9 @@ pub enum ExecuteMsg {
     /// Then as we're sure that this metadata with message is legit,
     /// We can check that this message id was marked as verified in the `Verify` query
     SubmitMeta {
-        /// **vaa** is the wormhole vaa message packed into hex binary
-        vaa: HexBinary,
-        /// **message** is the hyperlane message packed into hex binary
-        message: HexBinary,
+        metadata: HexBinary,
+        // TODO: verify that this is not neccesary and remove
+        // message: HexBinary,
     },
 }
 

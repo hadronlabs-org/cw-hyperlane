@@ -57,9 +57,8 @@ pub fn execute(
             handle_set_wormhole_core(deps, info, wormhole_core)
         }
         ExecuteMsg::SetOriginAddress { address } => handle_set_origin_address(deps, info, address),
-        // **vaa** is wormhole VAA data in order for it to work
-        // **message** is hyperlane message
-        ExecuteMsg::SubmitMeta { vaa, message } => handle_submit_meta(deps, vaa, message),
+        // metadata is actually VAA data in order for it to work
+        ExecuteMsg::SubmitMeta { metadata} => handle_submit_meta(deps, metadata),
     }
 }
 
@@ -124,17 +123,64 @@ fn handle_set_wormhole_core(
 
 fn handle_submit_meta(
     deps: DepsMut,
-    vaa: HexBinary,
-    message: HexBinary,
+    metadata: HexBinary,
 ) -> Result<Response, ContractError> {
     // unpack and verify vaa and check that the message is indeed (indeed what?)
-    let packed_id = verify_hyperlane_message_through_vaa(deps.as_ref(), vaa, message)?;
+    let packed_id = unpack_verify_vaa(deps.as_ref(), metadata)?;
 
     VERIFIED_IDS.save(deps.storage, packed_id.clone().into(), &())?;
 
-    Ok(Response::default()
-        .add_event(new_event("submit_meta"))
-        .add_attribute("packed_id", packed_id.to_hex()))
+    Ok(Response::default().add_event(new_event("submit_meta")))
+}
+
+/// **unpack_verify_vaa** uses core wormhole contract to verify and unpack the vaa inside metadata
+/// It also compares it to the message id.
+/// Also verify that that origin sender and origin chain is as expected.
+fn unpack_verify_vaa(
+    deps: Deps,
+    metadata: HexBinary,
+) -> Result<HexBinary, ContractError> {
+    let wormhole_core = WORMHOLE_CORE.load(deps.storage)?;
+    let wormhole_query_msg = WormholeQueryMsg::VerifyVAA {
+        vaa: Binary::from(metadata.as_slice()),
+        block_time: 0,
+    };
+    let parsed_vaa: ParsedVAA = deps
+        .querier
+        .query_wasm_smart(wormhole_core, &wormhole_query_msg)?;
+
+    let packed_id = HexBinary::from(parsed_vaa.payload.clone());
+
+    // TODO: remove probably; see below
+    // let message: Message = message.into();
+    // let id = message.id();
+
+    // ensure_eq!(id, packed_id, ContractError::IdsDontMatch);
+
+    let config = CONFIG.load(deps.storage)?;
+    ensure_eq!(
+        parsed_vaa.emitter_chain,
+        config.emitter_chain,
+        ContractError::OriginDoesNotMatch
+    );
+    ensure_eq!(
+        parsed_vaa.emitter_address,
+        config.emitter_address,
+        ContractError::OriginDoesNotMatch
+    );
+    // TODO: verify this is unneccesary and remove 
+    // ensure_eq!(
+    //     message.origin_domain,
+    //     config.origin_domain,
+    //     ContractError::OriginDoesNotMatch
+    // );
+    // ensure_eq!(
+    //     message.sender,
+    //     HexBinary::from(config.origin_sender),
+    //     ContractError::OriginDoesNotMatch
+    // );
+
+    Ok(packed_id)
 }
 
 /// **verify** verifies that ISM approves this message
@@ -146,7 +192,7 @@ fn verify(
     message: HexBinary,
 ) -> Result<VerifyResponse, ContractError> {
     // 1. verify that the message is indeed passed the check (unnecessary since the message.id is unique anyway?)
-    let message_id = unpack_hyperlane_message_id(deps, message)?;
+    let packed_id = unpack_verify_vaa(deps, metadata, )?;
 
     // 2. check the map
     let verified = VERIFIED_IDS.has(deps.storage, message_id.into());
