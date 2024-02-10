@@ -20,6 +20,7 @@ pub enum IsmType {
     Null = 6, // used with relayer carrying no metadata
     CcipRead = 7,
     Wormhole = 8,
+    Axelar = 9,
 }
 
 #[cw_serde]

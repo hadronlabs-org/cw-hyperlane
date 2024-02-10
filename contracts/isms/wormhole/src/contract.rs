@@ -58,7 +58,7 @@ pub fn execute(
             handle_set_wormhole_core(deps, info, wormhole_core)
         }
         // metadata is actually VAA data in order for it to work
-        ExecuteMsg::SubmitMeta { metadata, message } => handle_submit_meta(deps, metadata, message),
+        ExecuteMsg::SubmitMeta { metadata} => handle_submit_meta(deps, metadata),
     }
 }
 
@@ -106,10 +106,9 @@ fn handle_set_wormhole_core(
 fn handle_submit_meta(
     deps: DepsMut,
     metadata: HexBinary,
-    message: HexBinary,
 ) -> Result<Response, ContractError> {
     // unpack and verify vaa and check that the message is indeed (indeed what?)
-    let packed_id = unpack_verify_vaa(deps.as_ref(), metadata, message)?;
+    let packed_id = unpack_verify_vaa(deps.as_ref(), metadata)?;
 
     VERIFIED_IDS.save(deps.storage, packed_id.into(), &())?;
 
@@ -122,7 +121,6 @@ fn handle_submit_meta(
 fn unpack_verify_vaa(
     deps: Deps,
     metadata: HexBinary,
-    message: HexBinary,
 ) -> Result<HexBinary, ContractError> {
     let wormhole_core = WORMHOLE_CORE.load(deps.storage)?;
     let wormhole_query_msg = WormholeQueryMsg::VerifyVAA {
@@ -135,10 +133,11 @@ fn unpack_verify_vaa(
 
     let packed_id = HexBinary::from(parsed_vaa.payload.clone());
 
-    let message: Message = message.into();
-    let id = message.id();
+    // TODO: remove probably; see below
+    // let message: Message = message.into();
+    // let id = message.id();
 
-    ensure_eq!(id, packed_id, ContractError::IdsDontMatch);
+    // ensure_eq!(id, packed_id, ContractError::IdsDontMatch);
 
     let config = CONFIG.load(deps.storage)?;
     ensure_eq!(
@@ -151,16 +150,17 @@ fn unpack_verify_vaa(
         config.emitter_address,
         ContractError::OriginDoesNotMatch
     );
-    ensure_eq!(
-        message.origin_domain,
-        config.origin_domain,
-        ContractError::OriginDoesNotMatch
-    );
-    ensure_eq!(
-        message.sender,
-        HexBinary::from(config.origin_sender),
-        ContractError::OriginDoesNotMatch
-    );
+    // TODO: verify this is unneccesary and remove 
+    // ensure_eq!(
+    //     message.origin_domain,
+    //     config.origin_domain,
+    //     ContractError::OriginDoesNotMatch
+    // );
+    // ensure_eq!(
+    //     message.sender,
+    //     HexBinary::from(config.origin_sender),
+    //     ContractError::OriginDoesNotMatch
+    // );
 
     Ok(packed_id)
 }
@@ -171,7 +171,7 @@ fn verify(
     message: HexBinary,
 ) -> Result<VerifyResponse, ContractError> {
     // 1. verify that the message is indeed passed the check (unnecessary since the message.id is unique anyway?)
-    let packed_id = unpack_verify_vaa(deps, metadata, message)?;
+    let packed_id = unpack_verify_vaa(deps, metadata, )?;
 
     // 2. check the map
     ensure_eq!(

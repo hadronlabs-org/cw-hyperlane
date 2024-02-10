@@ -36,7 +36,11 @@ pub enum ExecuteMsg {
         origin_chain: String,
         id: Vec<u8>,
     },
+    SetOriginAddress {
+        origin_address: String,
+    }
 }
+
 
 #[cw_serde]
 #[derive(QueryResponses)]

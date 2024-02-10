@@ -29,7 +29,8 @@ pub enum ExecuteMsg {
     /// We can check that this message id was passed in the `Verify` query
     SubmitMeta {
         metadata: HexBinary,
-        message: HexBinary,
+        // TODO: verify that this is not neccesary and remove
+        // message: HexBinary,
     },
 }
 
