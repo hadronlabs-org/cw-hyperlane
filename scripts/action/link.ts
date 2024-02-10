@@ -13,29 +13,30 @@ async function main() {
 
   const fetcher = new ContractFetcher(ctx, client);
 
-  const ism_multisig = fetcher.get(HplIsmMultisig, "hpl_ism_multisig");
+  // const ism_multisig = fetcher.get(HplIsmMultisig, "hpl_ism_multisig");
 
   let res;
 
-  res = await ism_multisig.execute({
-    enroll_validator: {
-      set: {
-        domain: 5,
-        validator: client.signer,
-        validator_pubkey: client.signer_pubkey,
-      },
-    },
-  });
-  console.log(res.events.filter((v) => v.type.startsWith("wasm")));
+  // res = await ism_multisig.execute({
+  //   enroll_validator: {
+  //     set: {
+  //       domain: 5,
+  //       validator: client.signer,
+  //       validator_pubkey: client.signer_pubkey,
+  //     },
+  //   },
+  // });
+  // console.log(res.events.filter((v) => v.type.startsWith("wasm")));
 
-  const warp_native_ibc = fetcher.get(HplWarpNative, "hpl_warp_native_ibc");
+  const warp_native_ibc = fetcher.get(HplWarpNative, "hpl_warp_native");
 
   res = await warp_native_ibc.execute({
     router: {
       set_route: {
         set: {
-          domain: 5,
-          route: addPad("0xaB7011fa44868E023C869635eE33875629Aec8db"),
+          //TODO: temp for sepolia deploy
+          domain: 11155111,
+          route: addPad("0x8014Ea96F219A59C183cec9794039Bbe3167A847"),
         },
       },
     },
