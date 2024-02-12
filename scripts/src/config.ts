@@ -117,7 +117,14 @@ export type Config = {
       default?: HookType;
       required?: HookType;
     };
+    warp_route?: {
+      domain: number;
+      external_route: string;
+      ism: IsmType ;
+      hook: HookType;
+    };
   };
+
 };
 
 export type Client = {
