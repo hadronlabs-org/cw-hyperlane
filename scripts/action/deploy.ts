@@ -16,6 +16,10 @@ const name = (c: any) => c.contractName;
 const addr = (ctx: Context, c: any) => ctx.contracts[name(c)].address!;
 
 async function main() {
+  if (require.main !== module){
+    console.log("deploy required as module. Don't run")
+    return;
+  }
   const client = await getSigningClient(config);
 
   let ctx = loadContext(config.network.id);
@@ -154,6 +158,7 @@ const deploy_ism_hook = async (
     ...ctx.contracts[`hpl_ism_${config.deploy.ism?.type || "multisig"}`],
 
     address: await deploy_ism(
+      ctx,
       client,
       config.deploy.ism || {
         type: "multisig",
@@ -204,13 +209,15 @@ const deploy_ism_hook = async (
   return ctx;
 };
 
-const deploy_ism = async (
+export const deploy_ism = async (
+  ctx: Context,
   client: Client,
   ism: IsmType,
   contracts: Contracts
 ): Promise<string> => {
   const { isms } = contracts;
   
+  let ism_addr;
   switch (ism.type) {
     case "multisig":
       const multisig_ism_res = await isms.multisig.instantiate({
@@ -248,13 +255,13 @@ const deploy_ism = async (
         },
         "auto"
       );
-
-      return multisig_ism_res.address!;
+      ism_addr = multisig_ism_res.address!;
+      break;
 
     case "aggregate":
       const aggregate_ism_addrs = [];
       for (let sub_ism of ism.isms){
-        const addr = await deploy_ism(client, sub_ism, contracts)
+        const addr = await deploy_ism(ctx, client, sub_ism, contracts)
         aggregate_ism_addrs.push(addr)
       }
 
@@ -264,7 +271,8 @@ const deploy_ism = async (
         threshold: ism.threshold,
       });
 
-      return aggregate_ism_res.address!;
+      ism_addr = aggregate_ism_res.address!;
+      break;
 
     case "routing":
       const routing_ism_res = await isms.routing.instantiate({
@@ -279,7 +287,7 @@ const deploy_ism = async (
             set_routes: {
               set: await Promise.all(
                 Object.entries(ism.isms).map(async ([domain, v]) => {
-                  const route = await deploy_ism(client, v, contracts);
+                  const route = await deploy_ism(ctx, client, v, contracts);
                   return { domain, route };
                 })
               ),
@@ -289,7 +297,8 @@ const deploy_ism = async (
         "auto"
       );
 
-      return routing_ism_res.address!;
+      ism_addr = routing_ism_res.address!;
+      break;
 
       case "wormhole":
         const wormhole_ism_res = await isms.wormhole.instantiate({
@@ -299,7 +308,8 @@ const deploy_ism = async (
           hyperlane_origin_domain: ism.origin_domain,
         });
   
-        return wormhole_ism_res.address!;
+        ism_addr = wormhole_ism_res.address!;
+        break;
 
       case "axelar":
           const axelar_ism_res = await isms.axelar.instantiate({
@@ -309,15 +319,20 @@ const deploy_ism = async (
             origin_chain: ism.origin_chain,
           });
     
-          return axelar_ism_res.address!;
+          ism_addr = axelar_ism_res.address!;
+          break;
 
 
     default:
       throw new Error("invalid ism type");
   }
+
+  ctx.contracts[`hpl_ism_${ism.type}`].address = ism_addr;
+  
+  return ism_addr;
 };
 
-const deploy_hook = async (
+export const deploy_hook = async (
   ctx: Context,
   client: Client,
   hook: HookType,
@@ -330,6 +345,7 @@ const deploy_hook = async (
     mocks,
   } = contracts;
 
+  let hook_addr;
   switch (hook.type) {
     case "aggregate":
       const aggregate_hook_addrs = [];
@@ -342,7 +358,8 @@ const deploy_hook = async (
         hooks: aggregate_hook_addrs,
       });
 
-      return aggregate_hook_res.address!;
+      hook_addr = aggregate_hook_res.address!;
+      break;
 
     case "merkle":
       const merkle_hook_res = await hooks.merkle.instantiate({
@@ -350,19 +367,22 @@ const deploy_hook = async (
         mailbox: addr(ctx, mailbox),
       });
 
-      return merkle_hook_res.address!;
+      hook_addr = merkle_hook_res.address!;
+      break;
 
     case "mock":
       const mock_hook_res = await mocks.hook.instantiate({});
 
-      return mock_hook_res.address!;
+      hook_addr = mock_hook_res.address!;
+      break;
 
     case "pausable":
       const pausable_hook_res = await hooks.pausable.instantiate({
         owner: hook.owner === "<signer>" ? client.signer : hook.owner,
       });
 
-      return pausable_hook_res.address!;
+      hook_addr = pausable_hook_res.address!;
+      break;
 
     case "igp":
       return ctx.contracts[name(igp.core)].address!;
@@ -389,7 +409,8 @@ const deploy_hook = async (
         },
         "auto"
       );
-      return routing_hook_res.address!;
+      hook_addr = routing_hook_res.address!;
+      break;
 
     case "wormhole":
       const wormhole_hook_res = await hooks.wormhole.instantiate({
@@ -397,7 +418,8 @@ const deploy_hook = async (
         wormhole_core: hook.wormhole_core,
         mailbox: addr(ctx, mailbox),
       });
-        return wormhole_hook_res.address!;
+      hook_addr = wormhole_hook_res.address!;
+      break;
 
     case "axelar":
       const axelar_hook_res = await hooks.axelar.instantiate({
@@ -409,11 +431,16 @@ const deploy_hook = async (
         gas_token: hook.gas_token,
         mailbox: addr(ctx, mailbox),
       });
-        return axelar_hook_res.address!
+      hook_addr = axelar_hook_res.address!;
+      break;
 
     default:
       throw new Error("invalid hook type");
   }
+
+  ctx.contracts[`hpl_hook_${hook.type}`].address = hook_addr;
+
+  return hook_addr;
 };
 
 main().catch(console.error);
