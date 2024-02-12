@@ -34,7 +34,7 @@ pub enum ExecuteMsg {
     SubmitMeta {
         origin_address: String,
         origin_chain: String,
-        id: HexBinary,
+        id: Vec<u8>,
     },
     SetOriginAddress {
         origin_address: String,

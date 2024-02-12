@@ -56,9 +56,6 @@ pub fn execute(
             origin_chain,
             id,
         } => handle_submit_meta(deps, info, origin_address, origin_chain, id),
-        ExecuteMsg::SetOriginAddress { origin_address } => {
-            set_origin_address(deps, info, origin_address)
-        }
     }
 }
 
@@ -93,7 +90,7 @@ fn handle_set_origin_address(
     );
 
     let mut config = CONFIG.load(deps.storage)?;
-    config.origin_address = origin_address.clone();
+    config.origin_address = Some(origin_address.clone());
     CONFIG.save(deps.storage, &config)?;
     Ok(Response::new()
         .add_event(new_event("set_origin_address").add_attribute("orgin_address", origin_address)))

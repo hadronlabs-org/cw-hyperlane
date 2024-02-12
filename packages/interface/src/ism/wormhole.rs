@@ -23,7 +23,7 @@ pub enum ExecuteMsg {
 
     /// **SetOriginAddress** sets the origin EVM address that we check for wormhole VAA message and for hyperlane message
     SetOriginAddress {
-        address: HexBinary,
+        address: Vec<u8>,
     },
 
     /// **SubmitMeta** step is called by the wormhole relayer.

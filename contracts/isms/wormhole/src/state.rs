@@ -12,7 +12,7 @@ pub struct Config {
     pub hyperlane_origin_domain: u32,
 
     // for both hyperlane && wormhole vaa verification
-    pub origin_address: Option<HexBinary>,
+    pub origin_address: Option<Vec<u8>>,
 }
 
 /// **VERIFIED_IDS** contains all the `message.id`s (hash) that were verified by core wormhole contract
