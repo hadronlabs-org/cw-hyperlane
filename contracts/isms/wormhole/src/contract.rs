@@ -58,7 +58,7 @@ pub fn execute(
         }
         ExecuteMsg::SetOriginAddress { address } => handle_set_origin_address(deps, info, address),
         // metadata is actually VAA data in order for it to work
-        ExecuteMsg::SubmitMeta { metadata} => handle_submit_meta(deps, metadata),
+        ExecuteMsg::SubmitMeta { metadata } => handle_submit_meta(deps, metadata),
     }
 }
 
@@ -121,10 +121,7 @@ fn handle_set_wormhole_core(
         .add_event(new_event("set_wormhole_core").add_attribute("wormhole_core", wormhole_core)))
 }
 
-fn handle_submit_meta(
-    deps: DepsMut,
-    metadata: HexBinary,
-) -> Result<Response, ContractError> {
+fn handle_submit_meta(deps: DepsMut, metadata: HexBinary) -> Result<Response, ContractError> {
     // unpack and verify vaa and check that the message is indeed (indeed what?)
     let packed_id = unpack_verify_vaa(deps.as_ref(), metadata)?;
 
@@ -136,10 +133,7 @@ fn handle_submit_meta(
 /// **unpack_verify_vaa** uses core wormhole contract to verify and unpack the vaa inside metadata
 /// It also compares it to the message id.
 /// Also verify that that origin sender and origin chain is as expected.
-fn unpack_verify_vaa(
-    deps: Deps,
-    metadata: HexBinary,
-) -> Result<HexBinary, ContractError> {
+fn unpack_verify_vaa(deps: Deps, metadata: HexBinary) -> Result<HexBinary, ContractError> {
     let wormhole_core = WORMHOLE_CORE.load(deps.storage)?;
     let wormhole_query_msg = WormholeQueryMsg::VerifyVAA {
         vaa: Binary::from(metadata.as_slice()),
@@ -168,7 +162,7 @@ fn unpack_verify_vaa(
         config.emitter_address,
         ContractError::OriginDoesNotMatch
     );
-    // TODO: verify this is unneccesary and remove 
+    // TODO: verify this is unneccesary and remove
     // ensure_eq!(
     //     message.origin_domain,
     //     config.origin_domain,
@@ -192,7 +186,7 @@ fn verify(
     message: HexBinary,
 ) -> Result<VerifyResponse, ContractError> {
     // 1. verify that the message is indeed passed the check (unnecessary since the message.id is unique anyway?)
-    let packed_id = unpack_verify_vaa(deps, metadata, )?;
+    let packed_id = unpack_verify_vaa(deps, metadata)?;
 
     // 2. check the map
     let verified = VERIFIED_IDS.has(deps.storage, message_id.into());

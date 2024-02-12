@@ -12,7 +12,6 @@ use hpl_interface::to_binary;
 use hpl_interface::types::Message;
 use hpl_ownable::get_owner;
 
-
 #[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -48,14 +47,18 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Ownable(msg) => Ok(hpl_ownable::handle(deps, env, info, msg)?),
-        ExecuteMsg::SetOriginAddress { origin_address } => handle_set_origin_address(deps, info, origin_address),
+        ExecuteMsg::SetOriginAddress { origin_address } => {
+            handle_set_origin_address(deps, info, origin_address)
+        }
         // metadata is actually VAA data in order for it to work
         ExecuteMsg::SubmitMeta {
             origin_address,
             origin_chain,
             id,
         } => handle_submit_meta(deps, info, origin_address, origin_chain, id),
-        ExecuteMsg::SetOriginAddress { origin_address } => set_origin_address(deps, info, origin_address)
+        ExecuteMsg::SetOriginAddress { origin_address } => {
+            set_origin_address(deps, info, origin_address)
+        }
     }
 }
 
@@ -84,18 +87,16 @@ fn handle_set_origin_address(
     ensure_eq!(
         get_owner(deps.storage)?,
         info.sender,
-        ContractError::Unauthorized { expected: "owner".to_string() }
+        ContractError::Unauthorized {
+            expected: "owner".to_string()
+        }
     );
-    
+
     let mut config = CONFIG.load(deps.storage)?;
     config.origin_address = origin_address.clone();
     CONFIG.save(deps.storage, &config)?;
-    Ok(Response::new().add_event(
-        new_event("set_origin_address")
-            .add_attribute("orgin_address", origin_address)
-
-
-    ))   
+    Ok(Response::new()
+        .add_event(new_event("set_origin_address").add_attribute("orgin_address", origin_address)))
 }
 // TODO
 fn handle_submit_meta(
@@ -120,13 +121,17 @@ fn handle_submit_meta(
     ensure_eq!(
         config_origin_address,
         origin_address,
-        ContractError::InvalidOriginAddress {expected: origin_address}
+        ContractError::InvalidOriginAddress {
+            expected: origin_address
+        }
     );
 
     ensure_eq!(
         config.origin_chain,
         origin_chain,
-        ContractError::InvalidOriginChain {expected: origin_chain}
+        ContractError::InvalidOriginChain {
+            expected: origin_chain
+        }
     );
 
     VERIFIED_IDS.save(deps.storage, id_hex_binary.to_string(), &())?;
