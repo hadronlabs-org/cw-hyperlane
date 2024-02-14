@@ -223,20 +223,15 @@ pub fn send_to_evm(
     destination_contract: String,
     _destination_recipients: Vec<String>,
 ) -> Result<Response<NeutronMsg>, ContractError> {
-    // let addresses = destination_recipients
-    // .into_iter()
-    // .map(|s| {
-    //     match s.parse::<H160>() {
-    //         Ok(address) => Ok(Token::Address(Address::from(address))),
-    //         Err(_) => Err(ContractError::InvalidRecipientAddress { address: s }),
-    //     }
-    // })
-    // .collect::<Result<Vec<Token>, ContractError>>()?;
-
-    let message_nonce = Message::from(req.message).nonce;
+    let message_id = Message::from(req.message).id();
+    let message_id_arr = message_id
+        .to_array()
+        .into_iter()
+        .map(|s| Token::Int(s.into()))
+        .collect();
     let message_payload = encode(&vec![
         Token::String(info.sender.to_string()),
-        Token::Int(message_nonce.into()),
+        Token::Array(message_id_arr),
     ]);
 
     let mut destination_address: String = "0x".to_string();
