@@ -116,16 +116,16 @@ fn handle_submit_meta(
         .origin_address
         .ok_or_else(|| ContractError::OriginAddressNotSet)?;
     ensure_eq!(
-        config_origin_address,
-        origin_address,
+        config_origin_address.to_lowercase(),
+        origin_address.to_lowercase(),
         ContractError::InvalidOriginAddress {
             expected: origin_address
         }
     );
 
     ensure_eq!(
-        config.origin_chain,
-        origin_chain,
+        config.origin_chain.to_lowercase(),
+        origin_chain.to_lowercase(),
         ContractError::InvalidOriginChain {
             expected: origin_chain
         }
