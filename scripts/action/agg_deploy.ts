@@ -30,9 +30,9 @@ async function main() {
     mocks,
   } = contracts;
 
-  ctx = await deploy_mailbox(ctx, client, contracts);
+  // ctx = await deploy_mailbox(ctx, client, contracts);
+  // ctx = await deploy_va(ctx, client, contracts);
   ctx = await deploy_ism_and_hook(ctx, client, contracts);
-  ctx = await deploy_va(ctx, client, contracts);
   ctx = await deploy_warp(ctx, client, contracts);
 
   writeFileSync("./save.json", JSON.stringify(ctx, null, 2));
@@ -167,10 +167,9 @@ const deploy_warp = async (
   contracts: Contracts
 ): Promise<Context> => {
   const { warp, core: { mailbox } } = contracts
-
   ctx.contracts[name(warp.native)] = await warp.native.instantiate({
     token: {
-      collateral: {
+      bridged: {
         denom: WARP_DENOM,
       },
     },
