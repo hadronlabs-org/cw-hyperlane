@@ -67,7 +67,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<QueryResponse, Contr
         QueryMsg::Ism(msg) => match msg {
             ModuleType {} => to_binary({
                 Ok::<_, ContractError>(ModuleTypeResponse {
-                    typ: IsmType::Axelar,
+                    typ: IsmType::Null,
                 })
             }),
             Verify { metadata, message } => to_binary(verify(deps, metadata, message)),
@@ -158,4 +158,68 @@ fn verify_info(deps: Deps, _message: HexBinary) -> Result<VerifyInfoResponse, Co
 #[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
     Ok(Response::default())
+}
+
+#[cfg(test)]
+mod tests {
+    use hpl_interface::types::Message;
+    use cosmwasm_std::{
+        ensure_eq, Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, QueryResponse, Response,
+    };
+
+    #[test]
+    fn message_hex_test(){
+        let hex = |v: &str| -> HexBinary { HexBinary::from_hex(v).unwrap() };
+
+        let message = Message{
+
+             version: 3, 
+             nonce: 5556, 
+             origin_domain: 11155111, 
+             sender: hex("0000000000000000000000008014ea96f219a59c183cec9794039bbe3167a847"), 
+             dest_domain: 33333, 
+             recipient: hex("ef674da84b7e89fdc57a31a05c7dd432a89df6eba869f833adf51d623c5d3554"), 
+             body: hex("000000000000000000000000b352b279f34234ca9a457cab9b20c4580013dadd000000000000000000000000000000000000000000000000002386f26fc10000") 
+        };
+        println!("ID: {:?}", message.id());
+        println!("HB: {:?}", HexBinary::from(message));
+        let sub_id = [
+            31,
+            68,
+            167,
+            170,
+            162,
+            109,
+            64,
+            204,
+            62,
+            109,
+            73,
+            163,
+            15,
+            191,
+            14,
+            62,
+            233,
+            216,
+            243,
+            96,
+            222,
+            89,
+            2,
+            5,
+            186,
+            234,
+            189,
+            251,
+            71,
+            203,
+            222,
+            11
+          ];
+          let sub_hex = HexBinary::from(sub_id);
+          println!("sub hex: {:?}", sub_hex);
+    }
+
+    // expected ID: "0x1f44a7aaa26d40cc3e6d49a30fbf0e3ee9d8f360de590205baeabdfb47cbde0b"),
 }
