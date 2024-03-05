@@ -217,7 +217,7 @@ fn transfer_remote(
     let dispatch_payload = warp::Message {
         recipient: recipient.clone(),
         amount: Uint256::from_uint128(transfer_amount),
-        metadata: metadata.unwrap_or(HexBinary::default()),
+        metadata: metadata.clone().unwrap_or(HexBinary::default()),
     };
 
     // push mailbox dispatch msg
@@ -227,7 +227,7 @@ fn transfer_remote(
         dest_router,
         dispatch_payload.into(),
         get_hook(deps.storage)?.map(|v| v.into()),
-        None,
+        metadata,
         funds,
     )?);
 
