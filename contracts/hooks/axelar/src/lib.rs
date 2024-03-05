@@ -11,7 +11,7 @@ use hpl_interface::{
     hook::{
         axelar::{
             AxelarGeneralMessage, AxelarInfoResponse, AxelarQueryMsg, ExecuteMsg, InstantiateMsg,
-            QueryMsg, RegisterDestinationContractMsg,
+            QueryMsg, RegisterDestinationISMMsg,
         },
         HookQueryMsg, MailboxResponse, PostDispatchMsg, QuoteDispatchMsg, QuoteDispatchResponse,
     },
@@ -40,9 +40,6 @@ const AXELAR_GATEWAY: &str = "axelar1dv4u5k73pzqrxlzujxg3qp8kvc3pje7jtdvu72npnt5
 // TODO: move these to a single struct
 const DESTINATION_CHAIN_KEY: &str = "destination_chain";
 const DESTINATION_CHAIN: Item<String> = Item::new(DESTINATION_CHAIN_KEY);
-
-const DESTINATION_CONTRACT_KEY: &str = "destination_contract";
-const DESTINATION_CONTRACT: Item<String> = Item::new(DESTINATION_CONTRACT_KEY);
 
 const DESTINATION_ISM_KEY: &str = "destination_ism";
 const DESTINATION_ISM: Item<String> = Item::new(DESTINATION_ISM_KEY);
@@ -97,14 +94,12 @@ pub fn instantiate(
     hpl_ownable::initialize(deps.storage, &owner)?;
 
     let destination_chain = &msg.destination_chain;
-    let destination_contract = &msg.destination_contract;
     let destination_ism = &msg.destination_ism;
     let axelar_gateway_channel = &msg.axelar_gateway_channel;
     let gas_token = &msg.gas_token;
     let mailbox: Addr = deps.api.addr_validate(&msg.mailbox)?;
 
     DESTINATION_CHAIN.save(deps.storage, destination_chain)?;
-    DESTINATION_CONTRACT.save(deps.storage, destination_contract)?;
     DESTINATION_ISM.save(deps.storage, destination_ism)?;
     AXELAR_GATEWAY_CHANNEL.save(deps.storage, axelar_gateway_channel)?;
     GAS_TOKEN.save(deps.storage, gas_token)?;
@@ -115,7 +110,6 @@ pub fn instantiate(
             .add_attribute("sender", info.sender)
             .add_attribute("owner", owner)
             .add_attribute("destination_chain", destination_chain)
-            .add_attribute("destination_contract", destination_contract)
             .add_attribute("destination_ism", destination_ism)
             .add_attribute("axelar_gateway_channel", axelar_gateway_channel),
     ))
@@ -129,22 +123,21 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response<NeutronMsg>, ContractError> {
     match msg {
-        // TODO: maybe add SetWormholeCore Msg
         ExecuteMsg::Ownable(msg) => match hpl_ownable::handle(deps, env, info, msg) {
             Ok(s) => Ok(Response::new().add_events(s.events)),
             Err(e) => Err(e.into()),
         },
         ExecuteMsg::PostDispatch(msg) => post_dispatch(deps, env, info, msg),
-        ExecuteMsg::RegisterDestinationContract(msg) => {
-            register_destination_contract(deps, info, msg)
+        ExecuteMsg::RegisterDestinationISM(msg) => {
+            register_destination_ism(deps, info, msg)
         }
     }
 }
 
-fn register_destination_contract(
+fn register_destination_ism(
     deps: DepsMut<NeutronQuery>,
     info: MessageInfo,
-    msg: RegisterDestinationContractMsg,
+    msg: RegisterDestinationISMMsg,
 ) -> Result<Response<NeutronMsg>, ContractError> {
     ensure_eq!(
         get_owner(deps.storage)?,
@@ -152,12 +145,12 @@ fn register_destination_contract(
         ContractError::Unauthorized {}
     );
 
-    let destination_contract = &msg.destination_contract;
-    DESTINATION_CONTRACT.save(deps.storage, destination_contract)?;
+    let destination_ism = &msg.destination_ism;
+    DESTINATION_ISM.save(deps.storage, destination_ism)?;
 
     Ok(Response::new().add_event(
-        new_event("register_destination_contract")
-            .add_attribute("destination_contract", destination_contract),
+        new_event("register_destination_ISM")
+            .add_attribute("destination_ISM", destination_ism),
     ))
 }
 
@@ -196,7 +189,6 @@ fn post_dispatch(
 
     //send message to axelar gateway
     let destination_chain = DESTINATION_CHAIN.load(deps.storage)?;
-    let destination_contract = DESTINATION_CONTRACT.load(deps.storage)?;
     let destination_ism = DESTINATION_ISM.load(deps.storage)?;
     let axelar_gateway_channel = AXELAR_GATEWAY_CHANNEL.load(deps.storage)?;
 
@@ -208,8 +200,7 @@ fn post_dispatch(
         req,
         axelar_gateway_channel,
         destination_chain,
-        destination_contract,
-        vec![destination_ism],
+        destination_ism,
     )
 }
 
@@ -220,8 +211,7 @@ pub fn send_to_evm(
     req: PostDispatchMsg,
     gateway_channel: String,
     destination_chain: String,
-    destination_contract: String,
-    _destination_recipients: Vec<String>,
+    destination_ism: String,
 ) -> Result<Response<NeutronMsg>, ContractError> {
     let message_id = Message::from(req.message).id();
     let message_id_arr = message_id
@@ -235,14 +225,13 @@ pub fn send_to_evm(
     ]);
 
     let mut destination_address: String = "0x".to_string();
-    destination_address.push_str(&destination_contract);
+    destination_address.push_str(&destination_ism);
 
     let msg = AxelarGeneralMessage {
         destination_chain,
         destination_address,
         payload: message_payload.to_vec(),
         type_: 1,
-        // TODO: confirm there is no GMP fee
         fee: None,
     };
 
@@ -299,7 +288,6 @@ pub fn handle_query(
 ) -> StdResult<QueryResponse> {
     cosmwasm_std::to_binary(&AxelarInfoResponse {
         destination_chain: DESTINATION_CHAIN.load(deps.storage)?,
-        destination_contract: DESTINATION_CONTRACT.load(deps.storage)?,
         destination_ism: DESTINATION_ISM.load(deps.storage)?,
         axelar_gateway_channel: AXELAR_GATEWAY_CHANNEL.load(deps.storage)?,
     })

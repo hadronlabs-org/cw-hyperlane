@@ -9,22 +9,21 @@ pub struct InstantiateMsg {
     pub owner: String,
     pub mailbox: String,
     pub destination_chain: String,
-    pub destination_contract: String,
     pub destination_ism: String,
     pub axelar_gateway_channel: String,
     pub gas_token: String,
 }
 
 #[cw_serde]
-pub struct RegisterDestinationContractMsg {
-    pub destination_contract: String,
+pub struct RegisterDestinationISMMsg {
+    pub destination_ism: String,
 }
 
 #[cw_serde]
 pub enum ExecuteMsg {
     Ownable(OwnableMsg),
     PostDispatch(PostDispatchMsg),
-    RegisterDestinationContract(RegisterDestinationContractMsg),
+    RegisterDestinationISM(RegisterDestinationISMMsg),
 }
 
 #[cw_serde]
@@ -46,7 +45,6 @@ pub enum AxelarQueryMsg {
 #[cw_serde]
 pub struct AxelarInfoResponse {
     pub destination_chain: String,
-    pub destination_contract: String,
     pub destination_ism: String,
     pub axelar_gateway_channel: String,
 }

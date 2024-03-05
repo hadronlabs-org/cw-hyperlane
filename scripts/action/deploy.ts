@@ -425,7 +425,6 @@ export const deploy_hook = async (
       const axelar_hook_res = await hooks.axelar.instantiate({
         owner: hook.owner === "<signer>" ? client.signer : hook.owner,
         destination_chain: hook.destination_chain,
-        destination_contract: hook.destination_contract,
         destination_ism: hook.destination_ism,
         axelar_gateway_channel: hook.axelar_gateway_channel,
         gas_token: hook.gas_token,
