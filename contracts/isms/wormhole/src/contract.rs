@@ -58,7 +58,7 @@ pub fn execute(
         }
         ExecuteMsg::SetOriginAddress { address } => handle_set_origin_address(deps, info, address),
         // metadata is actually VAA data in order for it to work
-        ExecuteMsg::SubmitMeta { metadata } => handle_submit_meta(deps, metadata),
+        ExecuteMsg::SubmitMeta { metadata } => handle_submit_vaa(deps, metadata),
     }
 }
 
@@ -91,7 +91,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<QueryResponse, Contr
                     typ: IsmType::Null,
                 })
             }),
-            Verify { metadata, message } => to_binary(verify(deps, metadata, message)),
+            Verify { message, metadata } => to_binary(verify(deps, message)),
             VerifyInfo { message } => to_binary(verify_info(deps, message)),
         },
 
@@ -121,9 +121,9 @@ fn handle_set_wormhole_core(
         .add_event(new_event("set_wormhole_core").add_attribute("wormhole_core", wormhole_core)))
 }
 
-fn handle_submit_meta(deps: DepsMut, metadata: HexBinary) -> Result<Response, ContractError> {
+fn handle_submit_vaa(deps: DepsMut, vaa: HexBinary) -> Result<Response, ContractError> {
     // unpack and verify vaa and check that the message is indeed (indeed what?)
-    let packed_id = unpack_verify_vaa(deps.as_ref(), metadata)?;
+    let packed_id = unpack_verify_vaa(deps.as_ref(), vaa)?;
 
     VERIFIED_IDS.save(deps.storage, packed_id.clone().into(), &())?;
 
@@ -145,19 +145,13 @@ fn unpack_verify_vaa(deps: Deps, metadata: HexBinary) -> Result<HexBinary, Contr
 
     let packed_id = HexBinary::from(parsed_vaa.payload.clone());
 
-    // TODO: remove probably; see below
-    // let message: Message = message.into();
-    // let id = message.id();
-
-    // ensure_eq!(id, packed_id, ContractError::IdsDontMatch);
-
     let config = CONFIG.load(deps.storage)?;
     ensure_eq!(
         parsed_vaa.emitter_chain,
         config.vaa_emitter_chain,
         ContractError::VaaEmitterChainDoesNotMatch {
             vaa: parsed_vaa.emitter_chain,
-            config: config.vaa_emitter_chain, 
+            config: config.vaa_emitter_chain,
         }
     );
     let origin_address = config
@@ -166,39 +160,23 @@ fn unpack_verify_vaa(deps: Deps, metadata: HexBinary) -> Result<HexBinary, Contr
     ensure_eq!(
         parsed_vaa.emitter_address,
         origin_address,
-        ContractError::VaaEmitterAddressDoesNotMatch { 
+        ContractError::VaaEmitterAddressDoesNotMatch {
             vaa: parsed_vaa.emitter_address,
             config: origin_address,
         }
     );
-    // TODO: verify this is unneccesary and remove
-    // ensure_eq!(
-    //     message.origin_domain,
-    //     config.origin_domain,
-    //     ContractError::OriginDoesNotMatch
-    // );
-    // ensure_eq!(
-    //     message.sender,
-    //     HexBinary::from(config.origin_sender),
-    //     ContractError::OriginDoesNotMatch
-    // );
 
     Ok(packed_id)
 }
 
 /// **verify** verifies that ISM approves this message
 /// **message** is the message to check if it's approved or not
-/// **metadata** is ? (can be vaa)
 fn verify(
     deps: Deps,
-    metadata: HexBinary,
     message: HexBinary,
 ) -> Result<VerifyResponse, ContractError> {
-    // 1. verify that the message is indeed passed the check (unnecessary since the message.id is unique anyway?)
-    let packed_id = unpack_verify_vaa(deps, metadata, )?;
 
-    // 2. check the map
-    let verified = VERIFIED_IDS.has(deps.storage, packed_id.into());
+    let verified = VERIFIED_IDS.has(deps.storage, message.into());
 
     Ok(VerifyResponse { verified })
 }
@@ -218,4 +196,3 @@ fn verify_info(deps: Deps, _message: HexBinary) -> Result<VerifyInfoResponse, Co
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
     Ok(Response::default())
 }
-

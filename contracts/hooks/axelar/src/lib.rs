@@ -169,9 +169,9 @@ fn post_dispatch(
             &MailboxQueryMsg::LatestDispatchId {}.wrap(),
         )
         .or_else(|err| {
-            return Err(ContractError::LastDispatchQueryFailed {
+            Err(ContractError::LastDispatchQueryFailed {
                 err: err.to_string(),
-            });
+            })
         });
 
     let latest_dispatch_id = latest_dispatch_resp.unwrap().message_id;
@@ -261,7 +261,8 @@ pub fn send_to_evm(
         .add_attribute("status", "ibc_message_created")
         .add_attribute("ibc_message", format!("{:?}", ibc_transfer));
     let r = response.add_message(ibc_transfer);
-    return Ok(r);
+
+    Ok(r)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
