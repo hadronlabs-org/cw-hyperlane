@@ -88,7 +88,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<QueryResponse, Contr
         QueryMsg::Ism(msg) => match msg {
             ModuleType {} => to_binary({
                 Ok::<_, ContractError>(ModuleTypeResponse {
-                    typ: IsmType::Wormhole,
+                    typ: IsmType::Null,
                 })
             }),
             Verify { metadata, message } => to_binary(verify(deps, metadata, message)),
