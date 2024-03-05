@@ -104,20 +104,19 @@ fn post_dispatch(
         .message_id;
 
     let decoded_msg: Message = req.message.clone().into();
+    let message_id = decoded_msg.id();
 
     ensure_eq!(
         latest_dispatch_id,
-        decoded_msg.id(),
+        message_id,
         ContractError::Unauthorized {}
     );
 
-    // send message to wormhole core-bridging-contract
+    // send ID to wormhole core-bridging-contract
     let wormhole_core = WORMHOLE_CORE.load(deps.storage)?;
-    let decoded_msg: Message = req.message.clone().into();
-    let binary_message = Binary::from(req.message); // why req.message?
     let wormhole_message: WormholeExecuteMsg = WormholeExecuteMsg::PostMessage {
         nonce: decoded_msg.nonce,
-        message: binary_message,
+        message: message_id.into(),
     };
 
     let wormhole_msg = wasm_execute(&wormhole_core, &wormhole_message, vec![])?;
