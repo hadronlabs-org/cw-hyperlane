@@ -11,7 +11,7 @@ pub struct Config {
 }
 
 /// **VERIFIED_IDS** contains all the `message.id`s (hash) that were verified by core wormhole contract
-pub const VERIFIED_IDS: Map<Vec<u8>, ()> = Map::new("verified_ids");
+pub const VERIFIED_IDS: Map<String, ()> = Map::new("verified_ids");
 
 /// **CONFIG** is the contract's config
 pub const CONFIG: Item<Config> = Item::new("config");

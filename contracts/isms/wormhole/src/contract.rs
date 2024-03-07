@@ -10,6 +10,7 @@ use hpl_interface::ism::wormhole::{ExecuteMsg, InstantiateMsg, QueryMsg, Wormhol
 use hpl_interface::ism::IsmQueryMsg::{ModuleType, Verify, VerifyInfo};
 use hpl_interface::ism::{IsmType, ModuleTypeResponse, VerifyInfoResponse, VerifyResponse};
 use hpl_interface::to_binary;
+use hpl_interface::types::Message;
 
 #[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
 pub fn instantiate(
@@ -121,8 +122,7 @@ fn handle_set_wormhole_core(
 fn handle_submit_vaa(deps: DepsMut, vaa: Binary) -> Result<Response, ContractError> {
     // unpack and verify vaa and check that the message is indeed (indeed what?)
     let packed_id = unpack_verify_vaa(deps.as_ref(), vaa)?;
-
-    VERIFIED_IDS.save(deps.storage, packed_id.clone().into(), &())?;
+    VERIFIED_IDS.save(deps.storage, packed_id.to_string(), &())?;
 
     Ok(Response::default().add_event(
         new_event("submit_VAA")
@@ -183,8 +183,8 @@ fn verify(
     deps: Deps,
     message: HexBinary,
 ) -> Result<VerifyResponse, ContractError> {
-
-    let verified = VERIFIED_IDS.has(deps.storage, message.into());
+    let message: Message = message.into();
+    let verified = VERIFIED_IDS.has(deps.storage, message.id().to_string());
 
     Ok(VerifyResponse { verified })
 }
