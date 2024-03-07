@@ -133,7 +133,11 @@ fn handle_submit_meta(
 
     VERIFIED_IDS.save(deps.storage, id_hex_binary.to_string(), &())?;
 
-    Ok(Response::default().add_event(new_event("")))
+    Ok(Response::default().add_event(
+        new_event("submit_meta")
+            .add_attribute("ID", id_hex_binary.to_string())
+
+    ))
 }
 
 fn verify(
@@ -173,13 +177,13 @@ mod tests {
 
         let message = Message{
 
-             version: 3, 
-             nonce: 5556, 
-             origin_domain: 11155111, 
-             sender: hex("0000000000000000000000008014ea96f219a59c183cec9794039bbe3167a847"), 
-             dest_domain: 33333, 
-             recipient: hex("ef674da84b7e89fdc57a31a05c7dd432a89df6eba869f833adf51d623c5d3554"), 
-             body: hex("000000000000000000000000b352b279f34234ca9a457cab9b20c4580013dadd000000000000000000000000000000000000000000000000002386f26fc10000") 
+             version: 3,
+             nonce: 5556,
+             origin_domain: 11155111,
+             sender: hex("0000000000000000000000008014ea96f219a59c183cec9794039bbe3167a847"),
+             dest_domain: 33333,
+             recipient: hex("ef674da84b7e89fdc57a31a05c7dd432a89df6eba869f833adf51d623c5d3554"),
+             body: hex("000000000000000000000000b352b279f34234ca9a457cab9b20c4580013dadd000000000000000000000000000000000000000000000000002386f26fc10000")
         };
         println!("ID: {:?}", message.id());
         println!("HB: {:?}", HexBinary::from(message));
