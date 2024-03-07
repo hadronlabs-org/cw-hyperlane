@@ -29,15 +29,12 @@ export type IsmType =
       owner: string;
       isms: { [domain: number]: IsmType };
     }
-  | { 
+  | {
     type: "wormhole";
     owner: string;
     wormhole_core: string;
     emitter_chain: number;
-    emitter_address: number[];
-    origin_domain: number;
-    origin_sender: number[];
-
+    emitter_address: string;
     }
   | {
     type: "axelar";

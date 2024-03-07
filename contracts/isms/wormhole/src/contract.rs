@@ -10,7 +10,6 @@ use hpl_interface::ism::wormhole::{ExecuteMsg, InstantiateMsg, QueryMsg, Wormhol
 use hpl_interface::ism::IsmQueryMsg::{ModuleType, Verify, VerifyInfo};
 use hpl_interface::ism::{IsmType, ModuleTypeResponse, VerifyInfoResponse, VerifyResponse};
 use hpl_interface::to_binary;
-use hpl_interface::types::Message;
 
 #[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
 pub fn instantiate(
@@ -30,9 +29,8 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            vaa_emitter_chain: msg.vaa_emitter_chain,
-            hyperlane_origin_domain: msg.hyperlane_origin_domain,
-            origin_address: None,
+            vaa_emitter_chain: msg.emitter_chain,
+            origin_address: Some(msg.emitter_address),
         },
     )?;
 
@@ -57,15 +55,14 @@ pub fn execute(
             handle_set_wormhole_core(deps, info, wormhole_core)
         }
         ExecuteMsg::SetOriginAddress { address } => handle_set_origin_address(deps, info, address),
-        // metadata is actually VAA data in order for it to work
-        ExecuteMsg::SubmitMeta { metadata } => handle_submit_vaa(deps, metadata),
+        ExecuteMsg::SubmitVAA { vaa } => handle_submit_vaa(deps, vaa),
     }
 }
 
 fn handle_set_origin_address(
     deps: DepsMut,
     info: MessageInfo,
-    address: Vec<u8>,
+    address: String,
 ) -> Result<Response, ContractError> {
     ensure_eq!(
         hpl_ownable::get_owner(deps.storage)?,
@@ -91,7 +88,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<QueryResponse, Contr
                     typ: IsmType::Null,
                 })
             }),
-            Verify { message, metadata } => to_binary(verify(deps, message)),
+            Verify { message, .. } => to_binary(verify(deps, message)),
             VerifyInfo { message } => to_binary(verify_info(deps, message)),
         },
 
@@ -121,22 +118,25 @@ fn handle_set_wormhole_core(
         .add_event(new_event("set_wormhole_core").add_attribute("wormhole_core", wormhole_core)))
 }
 
-fn handle_submit_vaa(deps: DepsMut, vaa: HexBinary) -> Result<Response, ContractError> {
+fn handle_submit_vaa(deps: DepsMut, vaa: Binary) -> Result<Response, ContractError> {
     // unpack and verify vaa and check that the message is indeed (indeed what?)
     let packed_id = unpack_verify_vaa(deps.as_ref(), vaa)?;
 
     VERIFIED_IDS.save(deps.storage, packed_id.clone().into(), &())?;
 
-    Ok(Response::default().add_event(new_event("submit_meta")))
+    Ok(Response::default().add_event(
+        new_event("submit_VAA")
+            .add_attribute("ID", packed_id.to_string())
+    ))
 }
 
 /// **unpack_verify_vaa** uses core wormhole contract to verify and unpack the vaa inside metadata
 /// It also compares it to the message id.
 /// Also verify that that origin sender and origin chain is as expected.
-fn unpack_verify_vaa(deps: Deps, metadata: HexBinary) -> Result<HexBinary, ContractError> {
+fn unpack_verify_vaa(deps: Deps, metadata: Binary) -> Result<HexBinary, ContractError> {
     let wormhole_core = WORMHOLE_CORE.load(deps.storage)?;
     let wormhole_query_msg = WormholeQueryMsg::VerifyVAA {
-        vaa: Binary::from(metadata.as_slice()),
+        vaa: metadata,
         block_time: 0,
     };
     let parsed_vaa: ParsedVAA = deps
@@ -154,14 +154,22 @@ fn unpack_verify_vaa(deps: Deps, metadata: HexBinary) -> Result<HexBinary, Contr
             config: config.vaa_emitter_chain,
         }
     );
+    let mut vaa_emitter_str = "0x".to_string();
+    vaa_emitter_str.push_str(
+        &HexBinary::from(parsed_vaa.emitter_address)
+            .to_hex()
+            .to_lowercase()
+    );
     let origin_address = config
-    .origin_address
-    .ok_or_else(|| ContractError::OriginAddressNotSet)?;
+        .origin_address
+        .ok_or_else(|| ContractError::OriginAddressNotSet)?
+        .to_lowercase();
+
     ensure_eq!(
-        parsed_vaa.emitter_address,
+        vaa_emitter_str,
         origin_address,
         ContractError::VaaEmitterAddressDoesNotMatch {
-            vaa: parsed_vaa.emitter_address,
+            vaa: vaa_emitter_str,
             config: origin_address,
         }
     );

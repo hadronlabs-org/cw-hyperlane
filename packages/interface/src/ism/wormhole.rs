@@ -1,15 +1,15 @@
 use super::IsmQueryMsg;
 use crate::ownable::{OwnableMsg, OwnableQueryMsg};
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::HexBinary;
+use cosmwasm_std::Binary;
 
 #[cw_serde]
 pub struct InstantiateMsg {
     pub owner: String,
     pub wormhole_core: String,
 
-    pub vaa_emitter_chain: u16,
-    pub hyperlane_origin_domain: u32,
+    pub emitter_chain: u16,
+    pub emitter_address: String,
 }
 
 #[cw_serde]
@@ -23,17 +23,15 @@ pub enum ExecuteMsg {
 
     /// **SetOriginAddress** sets the origin EVM address that we check for wormhole VAA message and for hyperlane message
     SetOriginAddress {
-        address: Vec<u8>,
+        address: String,
     },
 
     /// **SubmitMeta** step is called by the wormhole relayer.
     /// We verify the metadata and compare it to the message id
     /// Then as we're sure that this metadata with message is legit,
     /// We can check that this message id was marked as verified in the `Verify` query
-    SubmitMeta {
-        metadata: HexBinary,
-        // TODO: verify that this is not neccesary and remove
-        // message: HexBinary,
+    SubmitVAA {
+        vaa: Binary,
     },
 }
 

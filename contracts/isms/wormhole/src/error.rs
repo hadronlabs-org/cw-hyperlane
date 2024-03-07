@@ -21,12 +21,6 @@ pub enum ContractError {
     #[error("vaa emitter chain does not match {vaa} != {config}")]
     VaaEmitterChainDoesNotMatch { vaa: u16, config: u16 },
 
-    #[error("vaa emitter address does not match")]
-    VaaEmitterAddressDoesNotMatch { vaa: Vec<u8>, config: Vec<u8> },
-
-    #[error("message origin domain does not match {message} != {config}")]
-    MessageOriginDomainDoesNotMatch { message: u32, config: u32 },
-
-    #[error("message origin sender does not match {message} != {config}")]
-    MessageOriginSenderDoesNotMatch { message: String, config: String },
+    #[error("vaa emitter address does not match {vaa} != {config}")]
+    VaaEmitterAddressDoesNotMatch { vaa: String, config: String },
 }
